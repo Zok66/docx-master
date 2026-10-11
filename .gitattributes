@@ -1,0 +1,11 @@
+# 统一换行符，避免不同平台 clone 后整库产生 diff
+* text=auto eol=lf
+
+# 二进制文件不做换行转换
+*.docx  binary
+*.doc   binary
+*.xlsx  binary
+*.pptx  binary
+*.zip   binary
+*.jpg   binary
+*.png   binary

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal Dublin Core Terms stub. Companion to dc.xsd — same rationale.
+  opc-coreProperties.xsd references dcterms:created and dcterms:modified.
+
+  Hand-written for this project. SPDX-License-Identifier: CC0-1.0
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  targetNamespace="http://purl.org/dc/terms/"
+  elementFormDefault="qualified">
+  <xs:element name="created" type="xs:anyType"/>
+  <xs:element name="modified" type="xs:anyType"/>
+</xs:schema>

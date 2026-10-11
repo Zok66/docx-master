@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Markup Compatibility (MC) namespace schema.
+
+  ECMA-376 Part 3 (Markup Compatibility and Extensibility) defines this
+  namespace but the official ECMA download ships only the spec PDF, not the
+  XSD as a separate file. This minimal schema is hand-written for this
+  project from the ECMA-376 Part 3 normative text, declaring just the
+  elements / attributes wml.xsd references via xs:import:
+    - mc:Ignorable, mc:MustUnderstand, mc:ProcessContent attributes
+    - mc:AlternateContent / Choice / Fallback elements
+
+  Loose typing (xs:string, xs:any) — same approach OOXML implementations
+  generally take for the MC schema. Validation here ensures the namespace
+  resolves; the validator's pre-pass (`stripMcExtensions`) removes
+  mc:Ignorable from main-content parts before validation anyway.
+
+  SPDX-License-Identifier: CC0-1.0
+-->
+<xs:schema
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  targetNamespace="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  elementFormDefault="qualified"
+  attributeFormDefault="unqualified">
+
+  <xs:attribute name="Ignorable" type="xs:string"/>
+  <xs:attribute name="MustUnderstand" type="xs:string"/>
+  <xs:attribute name="ProcessContent" type="xs:string"/>
+  <xs:attribute name="PreserveElements" type="xs:string"/>
+  <xs:attribute name="PreserveAttributes" type="xs:string"/>
+
+  <xs:element name="AlternateContent">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Choice" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax"/>
+            </xs:sequence>
+            <xs:attribute name="Requires" type="xs:string" use="required"/>
+            <xs:anyAttribute processContents="lax"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="Fallback" minOccurs="0" maxOccurs="1">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax"/>
+            </xs:sequence>
+            <xs:anyAttribute processContents="lax"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:anyAttribute processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
