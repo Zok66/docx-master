@@ -42,6 +42,26 @@ Word 原生墨迹是 `word/ink/ink1.xml`（InkML）+ `<w14:ink>` 扩展 + 笔迹
 
 **替代：** `doctor.js` 确认机器上有没有 `soffice`；有则用 PRO `soffice.py`，配 `pdftoppm` 还能把 PDF 拆成图做视觉核对。没有就交付 `.docx`，让用户自己导出。
 
+**WPS 渲染通道（实测可行，2026-10-14）：** 本机没有 `soffice` 但装了 WPS 时，可用 COM 自动化导出 PDF 再渲染成图做视觉核对（`pip install pywin32 PyMuPDF`）：
+
+```python
+import win32com.client, os
+wps = win32com.client.DispatchEx('KWPS.Application')   # WPS 文字的 COM ProgID
+wps.Visible = False
+try:
+    doc = wps.Documents.Open(os.path.abspath('in.docx'), False, True)  # ReadOnly
+    doc.SaveAs2(os.path.abspath('out.pdf'), 17)  # 17 = wdFormatPDF
+    doc.Close(False)
+finally:
+    wps.Quit()
+# 再用 pymupdf 逐页 get_pixmap(dpi=110).save(png) 出图核对
+```
+
+注意：`Visible = False` + `ReadOnly` 打开，避免与用户正开着该文件的 WPS 实例冲突；
+`DispatchEx` 起独立进程，退出时务必 `Quit()`（`finally` 包住），否则残留
+`wps.exe` 句柄锁文件。PowerShell 的 `New-Object -ComObject` 会被安全策略拦，
+走 Python `pywin32`。
+
 ### 文档翻译 / 语音听写
 
 外部服务能力（Word 的翻译走云端、听写走系统语音栈）。
