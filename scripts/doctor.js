@@ -82,23 +82,54 @@ function managedEnvPythons() {
 
 function findPython() {
 	const managed = managedEnvPythons();
-	const tried = [pythonExe, "python3", "python", ...managed];
+	// Order matters. A provisioned venv beats a bare interpreter even when it
+	// is not first on PATH: "python" from PATH is usually the stock runtime
+	// without lxml, and probing stops at the first interpreter that merely
+	// *starts*. Reporting "MISS Python + lxml" while a fully provisioned
+	// venv sits in the managed envs directory sends the agent off to install
+	// packages that are already there.
+	const preferred = managed.filter((p) => /envs[\\/]default[\\/]/.test(p));
+	const rest = managed.filter((p) => !preferred.includes(p));
+	const tried = [...preferred, pythonExe, "python3", "python", ...rest];
+	const seen = new Set();
+	let fallback = null;
+	const probedList = [];
 	for (const exe of tried) {
+		if (seen.has(exe)) continue;
+		seen.add(exe);
 		const r = probe(exe, ["--version"]);
-		if (r.ok) {
-			const deps = probe(exe, ["-c", "import lxml, defusedxml"]);
-			return { ok: true, cmd: exe, detail: r.detail, deps: deps.ok, depsDetail: deps.ok ? "lxml + defusedxml" : "missing lxml/defusedxml" };
+		if (!r.ok) continue;
+		const deps = probe(exe, ["-c", "import lxml, defusedxml"]);
+		probedList.push(`${exe}${deps.ok ? "" : " (no lxml)"}`);
+		const candidate = {
+			ok: true,
+			cmd: exe,
+			detail: r.detail,
+			deps: deps.ok,
+			depsDetail: deps.ok ? "lxml + defusedxml" : "missing lxml/defusedxml",
+			probed: probedList
+		};
+		if (deps.ok) return candidate;
+		// Usable but incomplete — remember it and keep looking for a better one.
+		if (!fallback) fallback = candidate;
+	}
+	if (fallback) {
+		// Say where the packages could come from instead of leaving the agent
+		// to guess that the machine has only one interpreter.
+		if (managed.length) {
+			fallback.detail += `  → venv(s) found: ${managed.join(", ")}`;
 		}
+		return fallback;
 	}
 	// Nothing probed successfully. Distinguish "absent" from "present but
 	// unprobeable": a sandbox that blocks process creation would otherwise make
 	// an installed interpreter look missing, sending you off to install it.
 	if (managed.length) {
-		const preferred = managed.find((p) => /envs[\\/]default[\\/]/.test(p)) || managed[0];
+		const pick = preferred[0] || managed[0];
 		return {
 			ok: false,
 			unprobeable: true,
-			detail: `${managed.length} interpreter(s) present but unprobeable (process creation blocked) — e.g. ${preferred}`
+			detail: `${managed.length} interpreter(s) present but unprobeable (process creation blocked) — e.g. ${pick}`
 		};
 	}
 	return { ok: false, detail: "not found" };

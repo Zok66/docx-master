@@ -73,6 +73,52 @@ class AnchorError(RuntimeError):
     pass
 
 
+# Text anchors match on "paragraph text contains the substring" and take
+# the first hit. That is fine for a unique sentinel, but a substring that
+# appears in a heading *and* in body text (or in a TOC entry) silently
+# lands on the wrong paragraph. Warning instead of guessing keeps the
+# failure visible; each distinct needle only warns once per run.
+_ANCHOR_WARNED = set()
+
+
+def warn(message: str) -> None:
+    print("[extend] warning: %s" % message, file=sys.stderr)
+
+
+def warn_ambiguous_anchor(key, needle, hits) -> None:
+    """A text anchor matched more than one paragraph and we took #1."""
+    marker = (key, needle, hits)
+    if marker in _ANCHOR_WARNED:
+        return
+    _ANCHOR_WARNED.add(marker)
+    warn("%s %r matched %d paragraphs — using the first. Prefer a "
+         "`bookmark` anchor (a Block `anchor`, a `format` op's `anchor`, or "
+         "an `extend bookmark` op): it names one exact target, while a text "
+         "needle can also hit a heading or a generated TOC entry."
+         % (key, needle, hits))
+
+
+def spec_flag(spec, *names, default=False):
+    """Read a boolean that has more than one accepted spelling.
+
+    Two spellings of the same switch (`flipV` in the reference docs vs
+    `flipVertical` in the implementation) used to mean the documented one
+    was read by nobody and failed *silently* — the shape just came out
+    unflipped. Accepting both fixes the silent half; raising on a
+    disagreement fixes the other half, because two contradicting values
+    are a config bug, not a preference.
+    """
+    present = [(n, spec[n]) for n in names if n in spec]
+    if not present:
+        return default
+    if len({bool(v) for _, v in present}) > 1:
+        raise RuntimeError(
+            "conflicting values for %s: %s — they are aliases, keep one"
+            % (" / ".join(n for n, _ in present),
+               ", ".join("%s=%r" % (n, v) for n, v in present)))
+    return bool(present[0][1])
+
+
 def body_of(root):
     body = root.find(W("body"))
     if body is None:
@@ -115,6 +161,8 @@ def resolve_anchor(root, spec, nth: int = 0):
             if len(hits) <= nth:
                 raise AnchorError("%s %r matched %d paragraph(s), need #%d"
                                   % (key, needle, len(hits), nth + 1))
+            if len(hits) > 1 and nth == 0:
+                warn_ambiguous_anchor(key, needle, len(hits))
             return hits[nth]
     raise AnchorError("anchor spec needs one of paragraphIndex / bookmark / afterText")
 
@@ -533,8 +581,9 @@ def op_drawing(pkg, root, spec):
         inner = cap.connector(
             cx_cm=float(spec.get("width", 3.0)),
             cy_cm=float(spec.get("height", 1.5)),
-            flip_vertical=bool(spec.get("flipVertical", False)),
-            arrow=bool(spec.get("arrow", True)),
+            flip_vertical=spec_flag(spec, "flipVertical", "flipV"),
+            flip_horizontal=spec_flag(spec, "flipHorizontal", "flipH"),
+            arrow=spec_flag(spec, "arrow", default=True),
             color=spec.get("line", "4A6FA5"),
             width=int(spec.get("lineWidthEmu", 19050)),
         )
@@ -654,11 +703,22 @@ def op_image(pkg, root, spec):
         crop=tuple(spec["crop"]) if spec.get("crop") else None,
         lum=tuple(spec["lum"]) if spec.get("lum") else None,
         effects=spec.get("effects", ""),
-        floating=bool(spec.get("floating")),
+        floating=spec_flag(spec, "floating"),
         wrap_text=spec.get("wrapText", "bothSides"),
+        offset_x_cm=float(spec.get("offsetX", 0.0)),
+        offset_y_cm=float(spec.get("offsetY", 0.0)),
+        allow_overlap=spec_flag(spec, "allowOverlap", default=True),
+        behind_doc=spec_flag(spec, "behindDoc", "behindDocument"),
     )
     insert_fragment(anchor, frag, spec.get("where", "after"))
-    return "picture inserted (%s)" % ("floating" if spec.get("floating") else "inline")
+    if spec.get("floating"):
+        return ("picture inserted (floating at %.1f,%.1f cm from the anchor "
+                "line%s)"
+                % (float(spec.get("offsetX", 0.0)),
+                   float(spec.get("offsetY", 0.0)),
+                   "" if spec_flag(spec, "allowOverlap", default=True)
+                   else ", overlap forbidden"))
+    return "picture inserted (inline)"
 
 
 def op_chart(pkg, root, spec):
@@ -767,9 +827,28 @@ def op_sdt(pkg, root, spec):
 
 def op_source(pkg, root, spec):
     """Register a bibliography source (word/sources.xml) and optionally
-    drop an inline CITATION field at an anchor."""
+    drop an inline CITATION field at an anchor.
+
+    Field spellings: `sourceType` (canonical) also accepts `type`, and
+    `citeAt` also accepts `cite` — a `{at, text}` object as documented, or
+    a bare anchor. `cite.text` becomes the field's placeholder text.
+    """
     tag = spec["tag"]
-    entry = cap.source_entry(tag, spec["sourceType"], spec.get("fields", {}),
+    source_type = spec.get("sourceType")
+    if source_type is None:
+        source_type = spec.get("type")
+    if source_type is None:
+        raise RuntimeError(
+            "source op needs `sourceType` (a b:SourceType such as Book / "
+            "JournalArticle / Report / Misc). `type` is accepted as an "
+            "alias.")
+    if (spec.get("sourceType") is not None and spec.get("type") is not None
+            and spec["sourceType"] != spec["type"]):
+        raise RuntimeError(
+            "source op: `sourceType` (%r) and `type` (%r) disagree — they "
+            "are aliases, keep one."
+            % (spec["sourceType"], spec["type"]))
+    entry = cap.source_entry(tag, source_type, spec.get("fields", {}),
                              authors=spec.get("authors"))
     xml = pkg.read("word/sources.xml")
     if xml is None:
@@ -782,11 +861,21 @@ def op_source(pkg, root, spec):
         pkg.write("word/sources.xml",
                   etree.tostring(tree, encoding="unicode", xml_declaration=False))
     cited = ""
-    if spec.get("citeAt"):
-        anchor = resolve_anchor(root, spec["citeAt"])
+    cite_at = spec.get("citeAt")
+    cite_text = None
+    if cite_at is None and spec.get("cite") is not None:
+        # Documented as `cite: {at, text}`; a bare anchor works too.
+        cite = spec["cite"]
+        if isinstance(cite, dict):
+            cite_at = cite.get("at")
+            cite_text = cite.get("text")
+        else:
+            cite_at = cite
+    if cite_at:
+        anchor = resolve_anchor(root, cite_at)
         locale = spec.get("localeId", 2052)
         runs = parse_fragment(cap.field_runs("CITATION %s \\l %d" % (tag, locale),
-                                             "[%s]" % tag))
+                                             cite_text or ("[%s]" % tag)))
         for r in runs:
             anchor.append(r)
         cited = " + CITATION field"

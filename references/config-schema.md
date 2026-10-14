@@ -27,6 +27,13 @@ emitted as `w:firstLineChars`, auto-scales with the run's font size.
 Prefer `"2char"` for CJK body indents so the indent stays correct when
 font size changes.
 
+These indent fields belong to **styles and paragraph formats only**. A
+`numbering[]` level carries `level` / `numFmt` / `lvlText` / `styleId` /
+`suff` / `numRPr` / `isLgl` / `restart` and nothing else — put the list
+indent on the style the level is bound to (`ListBullet`, `ListNumber`, …)
+and let the numbering own just the marker. Passing `indentLeft` inside a
+level is a config error, not a shortcut.
+
 `lineSpacing` has three modes determined by input type:
 
 - **`number`** → multiplier (auto rule). `1.5` = 1.5× line height.

@@ -652,15 +652,34 @@ def _order_effect_lst(body_xml: str) -> str:
 
 def picture_run(relationship_id: str, cx_cm: float, cy_cm: float, name: str,
                 crop=None, lum=None, effects: str = "", floating: bool = False,
-                wrap_text: str = "bothSides") -> str:
+                wrap_text: str = "bothSides", offset_x_cm: float = 0.0,
+                offset_y_cm: float = 0.0, allow_overlap: bool = True,
+                behind_doc: bool = False) -> str:
     """A picture as a paragraph.
 
     `crop` is a 4-tuple of per-mille insets `(left, top, right, bottom)`;
     `lum` is `(brightness, contrast)`; `effects` is raw `<a:effectLst>`
     content (glow, shadow, softEdge). `floating=True` produces a
-    `<wp:anchor>` with `wrapTight` instead of an inline drawing.
+    `<wp:anchor>` with a wrap element instead of an inline drawing.
+
+    Floating placement (`offset_x_cm` / `offset_y_cm` /
+    `allow_overlap` / `behind_doc`): the anchor is positioned from the
+    column and the line, so a zero offset pins the picture to the anchor
+    paragraph's left edge. Two floating objects anchored in the same
+    paragraph therefore land on the very same spot — and because
+    `allowOverlap` defaults to on, Word stacks them there instead of
+    pushing one aside. Give each floating object its own offset, or pass
+    `allow_overlap=False` to forbid stacking.
+
+    A floating picture's wrap also governs how *following* content flows:
+    with `wrapSquare` a picture that eats most of the column width leaves
+    too little room for wide inline drawings on the same page, and Word
+    squeezes those over the right margin. Prefer inline drawings for
+    layout-critical figures and reserve floating for a deliberate
+    text-wrapping effect.
     """
     cx, cy = int(cx_cm * CM), int(cy_cm * CM)
+    off_x, off_y = int(offset_x_cm * CM), int(offset_y_cm * CM)
     src_rect = '<a:srcRect l="%d" t="%d" r="%d" b="%d"/>' % crop if crop else ""
     lum_xml = '<a:lum bright="%d" contrast="%d"/>' % lum if lum else ""
     # `effects` is documented as the inner content of <a:effectLst>, but a
@@ -709,17 +728,18 @@ def picture_run(relationship_id: str, cx_cm: float, cy_cm: float, name: str,
     return (
         '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>'
         '<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" '
-        'relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">'
+        'relativeHeight="251658240" behindDoc="%d" locked="0" layoutInCell="1" allowOverlap="%d">'
         '<wp:simplePos x="0" y="0"/>'
-        '<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>'
-        '<wp:positionV relativeFrom="line"><wp:posOffset>0</wp:posOffset></wp:positionV>'
+        '<wp:positionH relativeFrom="column"><wp:posOffset>%d</wp:posOffset></wp:positionH>'
+        '<wp:positionV relativeFrom="line"><wp:posOffset>%d</wp:posOffset></wp:positionV>'
         '<wp:extent cx="%d" cy="%d"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
         '%s'
         '<wp:docPr id="%d" name="%s"/>'
         '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>'
         '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
         '%s</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>'
-    ) % (cx, cy, wrap_xml, next_id(), esc(name), pic)
+    ) % (1 if behind_doc else 0, 1 if allow_overlap else 0, off_x, off_y,
+         cx, cy, wrap_xml, next_id(), esc(name), pic)
 
 
 def chart_reference_run(relationship_id: str, cx_cm: float = 11.0,
@@ -766,16 +786,69 @@ def ink_run(points, color: str = "1F3A5F", width_pt: float = 2.0,
          ";".join("%d,%d" % p for p in points), d)
 
 
+def symbol_char_code(value) -> str:
+    """Normalise a `w:sym@w:char` value to `ST_ShortHexNumber`.
+
+    The attribute is a 1-4 digit **hex** token, so the literal glyph
+    ("→"), a `U+` spelling ("U+2192") and a decimal code point are all
+    invalid as written and fail XSD validation with an unhelpful message.
+    Accept every reasonable spelling and emit the canonical one:
+
+        "→"  ·  "U+2192"  ·  "0x2192"  ·  "2192"  →  "2192"
+        8594 (int)                                 →  "2192"
+        167                                        →  "00A7"
+
+    Rules that resolve the ambiguity between hex and decimal strings:
+    4 characters or fewer made of hex digits is *already* a code — that is
+    exactly the shape ST_ShortHexNumber allows, and how every symbol table
+    (Wingdings "F0FC", "2192") writes them. Five digits or more of pure
+    digits cannot be a code, so it is read as a decimal code point.
+    """
+    if isinstance(value, bool):
+        raise ValueError("symbol char must be a hex code, U+ code, decimal "
+                         "code point or the glyph itself — got %r" % (value,))
+    if isinstance(value, int):
+        cp = value
+    else:
+        text = str(value).strip()
+        if not text:
+            raise ValueError("symbol char is empty")
+        low = text.lower()
+        if low.startswith("u+"):
+            cp = int(low[2:], 16)
+        elif low.startswith("0x"):
+            cp = int(low[2:], 16)
+        elif len(text) <= 4 and all(c in "0123456789abcdefABCDEF" for c in text):
+            return text.upper()
+        elif text.isdigit():
+            cp = int(text)
+        elif len(text) == 1:
+            cp = ord(text)
+        else:
+            raise ValueError("symbol char %r is not usable: pass a single "
+                             "glyph, its hex code (\"2192\"), a U+ spelling "
+                             "(\"U+2192\") or a decimal code point" % (text,))
+    if cp < 0 or cp > 0xFFFF:
+        raise ValueError("symbol char U+%04X is outside ST_ShortHexNumber — "
+                         "the attribute only carries one UTF-16 code unit "
+                         "(BMP, U+0000–U+FFFF)" % cp)
+    return "%04X" % cp if cp > 0xFF else "%02X" % cp
+
+
 def symbol_run(font: str = "Wingdings", char: str = "F0FC", size_half_pt: int = 28) -> str:
     """A `w:sym` glyph run (Windings / Webdings / Symbol).
+
+    `char` accepts the glyph itself, a hex code, a `U+` spelling or a
+    decimal code point — see `symbol_char_code()` for the rules.
 
     Note the trailing `\u3000` sits in its own run in `symbol_paragraph` —
     a full-width space after the last run gets parsed as character data of
     `<w:p>` and fails the element-only content model.
     """
+    code = symbol_char_code(char)
     return ('<w:r><w:rPr><w:rFonts w:ascii="%s" w:hAnsi="%s"/>'
             '<w:sz w:val="%d"/></w:rPr><w:sym w:font="%s" w:char="%s"/></w:r>'
-            ) % (font, font, size_half_pt, font, char)
+            ) % (font, font, size_half_pt, font, code)
 
 
 def symbol_paragraph(symbols, style: str = "BodyText") -> str:
@@ -1146,23 +1219,78 @@ SOURCE_TYPES = {
 }
 
 
+def is_corporate(name) -> bool:
+    """True when `name` has to be written as `<b:Corporate>` rather than a
+    `<b:Person>`.
+
+    A dict says so explicitly (`{"corporate": "ISO/IEC JTC 1"}`). For a
+    plain string, CJK personal names are at most a few characters, so
+    anything longer than 4 characters is read as an organisation.
+    """
+    if isinstance(name, dict):
+        return "corporate" in name
+    return len(str(name)) > 4
+
+
+def corporate_text(name) -> str:
+    """The organisation name behind a corporate author entry."""
+    if isinstance(name, dict):
+        return str(name.get("corporate", ""))
+    return str(name)
+
+
 def _person(name):
-    """One `<b:Person>` (CT_PersonType: Last / First / Middle). Accepts a
-    dict ({last, first, middle} or {corporate}) or a string — a CJK-style
-    string splits first char as surname, rest as given name; anything
-    longer than 4 chars total is treated as corporate."""
+    """The *children* of one `CT_PersonType` — Last / First / Middle.
+
+    That is the whole content model of CT_PersonType: it has no Corporate
+    child. A corporate name must go one level up, on CT_AuthorType, via
+    `source_entry()` — writing `<b:Corporate>` inside `<b:Person>` produces
+    a document that Word may repair and the XSD validator rejects.
+    Accepts a dict ({last, first, middle}) or a string — a CJK-style
+    string splits first char as surname, rest as given name.
+    """
     if isinstance(name, dict):
         if "corporate" in name:
-            return "<b:Corporate>%s</b:Corporate>" % esc(name["corporate"])
+            raise ValueError(
+                "_person() got a corporate name (%r). CT_PersonType accepts "
+                "only Last/First/Middle — route organisations through "
+                "is_corporate()/corporate_text() so they land on "
+                "CT_AuthorType instead." % name["corporate"])
         parts = []
         for key, tag in (("last", "Last"), ("first", "First"), ("middle", "Middle")):
             if name.get(key):
                 parts.append("<b:%s>%s</b:%s>" % (tag, esc(name[key]), tag))
         return "".join(parts)
     text = str(name)
-    if len(text) > 4:
-        return "<b:Corporate>%s</b:Corporate>" % esc(text)
+    if is_corporate(text):
+        raise ValueError(
+            "_person() got a name longer than 4 characters (%r), which is "
+            "read as a corporate author. CT_PersonType has no Corporate "
+            "child — route it through is_corporate()/corporate_text()." % text)
     return "<b:Last>%s</b:Last><b:First>%s</b:First>" % (esc(text[:1]), esc(text[1:]))
+
+
+def author_block(authors) -> str:
+    """`<b:Author><b:Author>…</b:Author></b:Author>` for a list of people
+    and/or organisations.
+
+    People land in `<b:NameList>` as `<b:Person>` (Last/First/Middle);
+    organisations land as `<b:Corporate>` — a direct child of
+    CT_AuthorType, *not* of CT_PersonType. Both are valid children of the
+    CT_AuthorType choice, so mixing them is fine.
+    """
+    persons, corporates = [], []
+    for name in authors:
+        if is_corporate(name):
+            corporates.append("<b:Corporate>%s</b:Corporate>"
+                              % esc(corporate_text(name)))
+        else:
+            persons.append("<b:Person>%s</b:Person>" % _person(name))
+    inner = ""
+    if persons:
+        inner += "<b:NameList>%s</b:NameList>" % "".join(persons)
+    inner += "".join(corporates)
+    return ("<b:Author><b:Author>%s</b:Author></b:Author>" % inner)
 
 
 def source_entry(tag: str, source_type: str, fields: dict,
@@ -1197,11 +1325,7 @@ def source_entry(tag: str, source_type: str, fields: dict,
     for k, v in fields.items():
         parts.append((order_of(k), "<b:%s>%s</b:%s>" % (k, esc(str(v)), k)))
     if authors:
-        persons = "".join("<b:Person>%s</b:Person>" % _person(n)
-                          for n in authors)
-        parts.append((order_of("Author"),
-                      '<b:Author><b:Author><b:NameList>%s</b:NameList>'
-                      '</b:Author></b:Author>' % persons))
+        parts.append((order_of("Author"), author_block(authors)))
     parts.sort(key=lambda pair: pair[0])
     return "<b:Source>%s</b:Source>" % "".join(xml for _, xml in parts)
 

@@ -16333,8 +16333,28 @@ var DocxReader = class DocxReader {
 	}
 };
 const xmlSerializer = new import_lib$1.XMLSerializer();
+/**
+ * Empty text nodes must not serialize to the self-closed spelling.
+ *
+ * `<w:t/>` is schema-legal, but it is a landmine for every regex scanner
+ * downstream: a pattern like `<w:t(?:\s[^>]*)?>([\s\S]*?)</w:t>` lets
+ * `[^>]*` swallow the trailing "/", reads the node as an opening tag and
+ * then consumes everything up to the *next* `</w:t>` as if it were field
+ * result text — silently dropping whole paragraphs from the extracted
+ * text. The engine emits exactly that node for the hidden chapter counter
+ * that backs `captions[].chapterPrefix`, so any chapter-numbered caption
+ * used to poison text extraction across the toolchain.
+ *
+ * Writing the explicit open/close pair is byte-for-byte equivalent for
+ * Word and removes the hazard at the source. Text content can never be
+ * mistaken for markup here because "<" inside text is already escaped.
+ */
+const SELF_CLOSED_TEXT_RE = /<(w:t|w:instrText)((?:\s[^>]*?)?)\/>/g;
+function expandSelfClosedTextNodes(xml) {
+	return xml.replace(SELF_CLOSED_TEXT_RE, "<$1$2></$1>");
+}
 function serializeXml(doc) {
-	const out = xmlSerializer.serializeToString(doc);
+	const out = expandSelfClosedTextNodes(xmlSerializer.serializeToString(doc));
 	if (out.startsWith("<?xml")) return out;
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${out}`;
 }

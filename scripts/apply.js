@@ -11883,7 +11883,19 @@ function formatIssue(issue, raw) {
 /** When zod reports `invalid_union`, the real issues are nested per-variant.
 * Pick the variant that matched the discriminator (its issues are not just
 * `invalid_value` on a `type` / `op` field) and surface those. Recurse if
-* the matched variant itself fails another union. */
+* the matched variant itself fails another union.
+*
+* Which variant to believe: the *most specific* one, not the one with the
+* fewest complaints. "Fewest" is actively misleading — for
+* `union([NumberingSchema, array(NumberingSchema)])` a stray key inside a
+* level makes the object variant fail with a single shallow
+* `invalid_type` ("expected object, got [...]") while the array variant
+* fails with one precise issue per bad key, so fewest-issues picks the
+* vague branch and points the agent at the wrong place entirely. The
+* score below rewards structural evidence (an `unrecognized_keys` means
+* the shape was understood and only the key was wrong) and depth, and
+* penalises a shallow type mismatch, which usually means "this variant
+* never applied". */
 function flattenUnionIssues(issue) {
 	if (issue.code !== "invalid_union") return [issue];
 	const variants = issue.errors ?? [];
@@ -11891,8 +11903,8 @@ function flattenUnionIssues(issue) {
 	for (const variant of variants) {
 		const realIssues = variant.filter((sub) => !(sub.code === "invalid_value" && sub.path.length === 1 && (sub.path[0] === "type" || sub.path[0] === "op")));
 		if (realIssues.length === 0) continue;
-		const score = realIssues.length;
-		if (!best || score < best.score) best = {
+		const score = unionVariantScore(realIssues);
+		if (!best || score > best.score) best = {
 			issues: realIssues,
 			score
 		};
@@ -11908,6 +11920,21 @@ function flattenUnionIssues(issue) {
 			path: [...issue.path, ...sub.path]
 		});
 	});
+}
+/** Specificity score for one union variant's issues (higher = more likely
+* to be the variant the author meant). */
+function unionVariantScore(issues) {
+	let score = 0;
+	for (const sub of issues) {
+		const depth = sub.path.length;
+		if (sub.code === "unrecognized_keys") score += 100;
+		else if (sub.code === "invalid_type") {
+			// A missing/!wrong type at the root of the variant means the
+			// variant does not apply at all — believe it last.
+			score += depth === 0 ? -100 : depth;
+		} else score += 10 + depth;
+	}
+	return score;
 }
 /** Format a ZodError as a multi-line, agent-readable string. Each issue
 * gets a path prefix and either the supplied domain hint, a code-specific

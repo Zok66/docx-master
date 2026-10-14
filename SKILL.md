@@ -43,7 +43,7 @@ Structure comes from **styles + numbering + sections + SEQ fields**, not typed t
 ## Commands
 
 - **`apply`** — the unified writer: install styles + numbering + theme + template, restyle by pattern / fingerprint, insert content via edits. One config, one call. → [standardize.md](references/standardize.md) + [edit.md](references/edit.md)
-- `audit` — read-only conformance check workflow; no CLI, uses the inspect tools to produce a violation report. → [audit.md](references/audit.md)
+- `audit` — read-only conformance check: no CLI, uses the inspect tools to produce a violation report. → [audit.md](references/audit.md)
 - **`extend`** — post-processing for what the engine deliberately does not write: TOC / table-of-figures / index fields, footnotes & endnotes, watermarks, page borders, shapes / text boxes / canvas / WordArt / diagrams, charts, OLE, glossary, cover pages, custom XML. → [extend.md](references/extend.md)
 - **`pipeline`** — one-command rebuild of a multi-step chain (config source → `apply` → `extend` → validate → verify); aborts on first failure, auto-validates the deliverable, `--plan` / `--emit-script` when child processes are forbidden. → [delivery-gate.md](references/delivery-gate.md)
 - **`verify`** — the delivery gate: declarative assertions (exit 1 on failure) + change manifest vs. a baseline. → [delivery-gate.md](references/delivery-gate.md)
@@ -76,7 +76,7 @@ Sparse by design — only declared blocks apply; untouched styles / numbering / 
 3. **Dry-run.** `apply --dry-run` first; read the change report's signals (Style Resolution / Sample Affected / Implicit-keep failure / unmatched stripPrefix) against intent — see [standardize.md §5](references/standardize.md).
 4. **Apply.** Output is a fresh docx; the original is never modified.
 
-**Keep reconnaissance cheap.** These tools emit hundreds of lines on a real document — pass truncation flags (`overview --paras=A..B|none`, `--limit N`, `--problems-only`, `--json`, `--quiet`) so only the needed slice enters context; fetch a fact once and reuse it. Full list: [tools.md](references/tools.md) § 输出裁剪.
+**Keep reconnaissance cheap.** These tools emit hundreds of lines — pass truncation flags (`overview --paras=A..B|none`, `--limit N`, `--problems-only`, `--json`, `--quiet`) so only the needed slice enters context; fetch a fact once, reuse it. Full list: [tools.md](references/tools.md) § 输出裁剪.
 
 ## Asking the user
 
@@ -86,7 +86,9 @@ Default: don't ask. Ask only for — typed sentinel mid-prose vs. heading · bol
 
 **Blocked — surface to the user:** layout-**table** restructuring, TOC body content, page-number cites. Paragraphs *inside* layout-table cells ARE indexed and fully editable; only the table holding them is off-limits.
 
-**Supported, despite looking out of scope:** footnote / endnote *bodies* via `extend` (`{"op": "footnote"}` / `"endnote"}` creates the part + relationship + id — only their *indexing* is absent, since note bodies live in `word/footnotes.xml` / `word/endnotes.xml`); comments (批注) via PRO `comment.py`; page setup + headers / footers, including per-section overrides ([extend.md](references/extend.md), [config-schema.md §page setup](references/config-schema.md#page-setup), [header-footer.md](references/header-footer.md)).
+**Supported, despite appearances:** footnote / endnote *bodies* via `extend` (`{"op": "footnote"}` / `"endnote"}` creates part + rel + id; only *indexing* is absent — notes live in `word/footnotes.xml` / `word/endnotes.xml`); comments via PRO `comment.py`; page setup + headers / footers incl. per-section overrides ([extend.md](references/extend.md), [config-schema.md §page setup](references/config-schema.md#page-setup), [header-footer.md](references/header-footer.md)).
+
+**Not attempted (binary part / external app):** `.dotx` · real SmartArt (`dgm`) · ActiveX · InkML · macros · envelope / label layouts · PDF/XPS · translation / dictation → [out-of-scope.md](references/out-of-scope.md).
 
 ## Tool index
 
@@ -106,7 +108,7 @@ All tools run as `node <script> <args>` → stdout. Write / delivery commands ar
 
 The Node engine is the default and zero-dependency. The vendored Python toolchain under `pro/` covers only what Node cannot — **comments**, **accepting tracked changes**, **legacy `.doc` conversion**, **render-to-image verification**, **XSD / redlining check**, **element-order lookup**, docx-js footguns.
 
-On this machine Python + `defusedxml` + `lxml` are installed but **`pandoc` / `soffice` / `pdftoppm` / npm `docx` are NOT** — install before using the render-verify, `.doc` conversion, or docx-js paths. Full routing table, invocation conventions (run from `pro/scripts/`), boundary conflicts, fallback: [pro-toolchain.md](references/pro-toolchain.md).
+`doctor.js` reports which optional tools are missing — install them before using the render-verify, `.doc` conversion, or docx-js paths. Routing table, invocation conventions (run from `pro/scripts/`), boundary conflicts, fallback: [pro-toolchain.md](references/pro-toolchain.md).
 
 ## Delivery gate
 

@@ -75,8 +75,20 @@ function decode(s) {
 		.replace(/&amp;/g, "&");
 }
 
+/**
+ * Token scanner for the visible-text extractor.
+ *
+ * Order matters: the self-closed forms `<w:t .../>` and `<w:instrText .../>`
+ * MUST be matched before their paired forms. Otherwise the attribute class
+ * `[^>]*` swallows the trailing `/` of `<w:t xml:space="preserve"/>`, the
+ * scanner treats it as an opening tag, and everything up to the next
+ * `</w:t>` — including whole paragraphs of body text — is consumed as if it
+ * were a field result and dropped. `apply` emits exactly that node when it
+ * writes the hidden chapter counter behind `captions[].chapterPrefix`, so
+ * every chapter-numbered caption document used to trip this.
+ */
 const TOKEN_RE =
-	/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:instrText(?:\s[^>]*)?>([\s\S]*?)<\/w:instrText>|<w:fldChar\b[^>]*\bw:fldCharType="(\w+)"[^>]*?\/?>|<w:tab\b[^>]*\/>|<w:(?:br|cr)\b[^>]*\/>/g;
+	/<w:t(?:\s[^>]*)?\/>|<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:instrText(?:\s[^>]*)?\/>|<w:instrText(?:\s[^>]*)?>([\s\S]*?)<\/w:instrText>|<w:fldChar\b[^>]*\bw:fldCharType="(\w+)"[^>]*?\/?>|<w:tab\b[^>]*\/>|<w:(?:br|cr)\b[^>]*\/>/g;
 
 function fieldName(instr) {
 	const m = instr.trim().match(/^\\?\s*([A-Za-z]+)/);
@@ -116,6 +128,9 @@ function textOf(xml) {
 			}
 		} else if (m[0].startsWith("<w:tab")) {
 			if (!inResult) out += "\t";
+		} else if (m[0].startsWith("<w:t") || m[0].startsWith("<w:instrText")) {
+			// Self-closed `<w:t/>` / `<w:instrText/>`: an empty node. It
+			// carries no text and must not be mistaken for a line break.
 		} else if (!inResult) out += "\n";
 	}
 	return out;

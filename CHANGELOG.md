@@ -5,6 +5,110 @@
 
 ---
 
+## 2026-10-13（第九轮）—— 缺陷修复：交付门误报、XSD 漏网、静默失效
+
+这一轮的每一条都来自一次**全能力演示文档**的实测（86 项元素逐项落地 + 双校验 + 43 条断言），
+不是代码审读猜出来的。按「回归测试跑得出来的才叫修好」标准，每条都附实测证据。
+
+### P0 —— 交付门误报：`verify` 的文本提取在自闭合 `<w:t/>` 上崩掉
+
+- **根因**：`TOKEN_RE` 第一个分支 `<w:t(?:\s[^>]*)?>([\s\S]*?)</w:t>` 的属性类 `[^>]*` 会吞掉自闭合写法
+  `<w:t xml:space="preserve"/>` 结尾的 `/`，把它读成开标签，于是「一路匹配到下一个 `</w:t>`」，
+  中间整段正文被当成域结果丢弃。实测：77136 字符的 `document.xml` 只提取出 251 字符，第 5 个域之后正文全丢。
+- **触发条件**：文档含自闭合文本节点。而 `apply` 为 `captions[].chapterPrefix` 写隐藏章节计数器时正好产出这种节点
+  ——**凡用了按章题注编号的文档都会中招**，属高频路径。
+- **修法（两侧同时）**：
+  1. `scripts/verify.js`：`TOKEN_RE` 增加自闭合分支并置于配对分支**之前**（`<w:t …/>` / `<w:instrText …/>`），
+     `textOf()` 对自闭合节点既不出文本也不出换行。
+  2. `scripts/_shared/xml-utils.js`：`serializeXml()` 统一把 `w:t` / `w:instrText` 的自闭合写法展开成显式配对
+     （`expandSelfClosedTextNodes()`）。语义逐字节等价，从源头消除隐患——所有部件都受益。
+- **实测**：`apply` 输出中自闭合节点 **6 → 0**；把 1 处自闭合节点注入成品文档后，
+  新版 `verify` **43/43 通过**，旧版同一文档 **2 条断言失败**（对照实验）。
+  外部规避脚本 `normalize_empty_text.py` 从此不再需要。
+
+### P0 —— Node 校验器放过了 XSD 级错误
+
+同一份文档：`node scripts/validate.js` 全 PASS，PRO `validate.py` 报 9 个 XSD 错误。两处都是真缺陷：
+
+1. **`<w:sym @w:char>` 必须是 `ST_ShortHexNumber`**，传实际字符（`→`）直接非法。
+   修法：新增 `symbol_char_code()`，接受**字符本身**（`"→"`）、`U+2192`、`0x2192`、十六进制 `"2192"`
+   或十进制码位（整数 `8594`），统一规范化；超出 BMP 或多余字符给出可读报错。
+   歧义规则：≤4 位的纯十六进制字符按码位解释（这正是 `ST_ShortHexNumber` 的形态，也是符号表的写法）。
+2. **`<b:Corporate>` 不在 `CT_PersonType` 里**。它其实是 `CT_AuthorType` 的子元素——机构作者不该包在
+   `<b:Person>` 内。原 `_person()` 对长于 4 字符的姓名一律输出 `b:Corporate`，**任何机构作者都会产出非法 XML**。
+   修法：拆成 `is_corporate()` / `corporate_text()` / `_person()` / `author_block()`；人名进
+   `<b:NameList><b:Person>`，机构名进 CT_AuthorType 直系 `<b:Corporate>`，两者可混写。
+   实测输出：`<b:Author><b:Author><b:NameList><b:Person><b:Last>张</b:Last>…</b:Person></b:NameList><b:Corporate>ISO/IEC JTC 1</b:Corporate></b:Author></b:Author>`，
+   PRO 校验 PASS。
+
+### P1 —— 文档与实现字段名不一致（其中一条是静默失效）
+
+- `source` op：文档写 `type` / `cite: {at, text}`，实现读 `sourceType` / `citeAt`。现实现**两者都收**，
+  两个都写且不一致时直接报错（别名分歧是配置错误，不是偏好）。`cite.text` 用作域占位文本。
+- `drawing` 连接线：文档写 `flipV` / `flipH`，实现读 `flipVertical`。这是**静默失效**——不报错，形状就是不翻转，
+  比报错更难发现。现四个拼写都认，并新增 `spec_flag()`：同一开关的多个拼写都出现且互相矛盾时报错。
+
+### P1 —— 浮动图片定位硬编码，与宽 inline 图混排必然错乱
+
+- **现象**：`floating: true` 的图片在 Word 里把同页其他图形挤得重叠、越出页边距。
+- **根因（两层）**：① `picture_run()` 浮动分支把定位写死为 `column/0 + line/0 + allowOverlap=1`，
+  配置里没有任何参数能改；② 环绕（`wrapSquare`）只对**文字行**生效，同页后续比环绕剩余宽度更宽的
+  **嵌入式**图形会被挤向右侧、越界叠压。
+- **修法**：`picture_run()` 暴露 `offset_x_cm` / `offset_y_cm` / `allow_overlap` / `behind_doc`，
+  `image` op 透传 `offsetX` / `offsetY` / `allowOverlap` / `behindDoc`；
+  `extend.md` 明确警告该组合风险，并建议版式关键图形一律走嵌入式。
+- **实测**：修复前 1 个 `wp:anchor`(9×5.4cm) + 10 个 inline；改为嵌入式后 **anchor=0 / inline=11**，
+  双校验与 43 条断言复跑全过。
+
+### P1 —— `strictObject` union 的报错归因指向错误位置
+
+`numbering` 里塞了非法键（`indentLeft`）时，报错是 `numbering: expected object, got [...]`——
+因为 union 的两个分支里，对象分支只报 1 条笼统的浅层类型错，数组分支报 N 条精确错误，
+而原策略是「**取问题最少的分支**」，恰好选中最没用的那个。
+
+修法：改为按**具体性**打分（`unionVariantScore()`）——`unrecognized_keys` 说明形状已被理解、只错在键名，
+得最高分；深层 path 加分；**根层 `invalid_type` 扣分**（意味着该变体根本不适用）。
+实测：同一份配置现在报 `numbering[0].levels[0]: unknown key "indentLeft"`，精确指向真实位置。
+同时 `config-schema.md` 写明：缩进只能落在绑定样式上，编号层级只管 `numFmt` / `lvlText` / `suff` / `numRPr`。
+
+### P2 —— 锚点命中多处时静默取首个
+
+按子串匹配的文本锚点命中多段时，原实现静默取第一个。「表格」这类中文短词实测命中 7 段——
+落在标题、正文或生成的目录条目上都是可能的。现在命中多于一处时往 stderr 打一条 warning
+（同一改法只提示一次，不阻断），并说明更好的做法：在 `apply` 阶段落命名书签，`extend` 用
+`{"bookmark": "..."}` 精确指过去。`extend.md` 的锚点章节同步加上「优先用 bookmark 锚点」。
+
+### P2 —— `doctor` 探不到已装好的 venv
+
+原实现遇到第一个**能启动**的解释器就返回：PATH 上的 `python` 通常是没有 lxml 的裸解释器，
+于是一台机器上明明躺着配好的 venv，报告仍写 "MISS Python + lxml"，把人引去装已经有的包。
+
+修法：优先试托管 venv（含 `envs/default`），**找到带 lxml 的才收工**；否则记住可用的那个继续找，
+最后在 detail 里列出发现的 venv 路径。实测：现在报
+`OK Python + lxml — …\envs\default\Scripts\python.exe — Python 3.13.14`。
+
+### 新增 `references/out-of-scope.md`
+
+把「明确不做」的能力集中成一份可引用的清单，每项都写清**为什么不做**和**替代路径**：
+宏（`.vbaProject.bin`）· ActiveX · 真 SmartArt（`dgm`）· InkML · `.dotx` 导出 ·
+PDF/XPS 导出 · 翻译 / 听写 · 信封 / 标签 · 以及属于 Word 应用层而非文档层的（自动更正词条、
+词典、双面打印、快速样式集）。SKILL.md 的 Out of scope 段给一行索引 + 指针，
+避免每次都要重新论证一遍。主控体积 19981 / 20000 B。
+
+### 更正
+
+- 第八轮清单里「PRO `validate.py` 失败时退出码仍为 0」**不成立**：`validate.py` 早已是
+  `sys.exit(0 if success else 1)`，`validate_against_xsd()` 在 `new_errors` 非空时返回 `False`。
+  当时观测到 0 是管道（`| tail`）吞掉了上游退出码，属测量误差，非 skill 缺陷。
+
+### 验证
+
+- `node tests/run.mjs --smoke` → **PASS 95/95**
+- 演示工程全链路回归：`apply → extend → 双校验 → verify` 43 条断言全过；书签 0 悬空
+- 对照实验：同一份含自闭合节点的文档，旧 `verify` 2 条失败 / 新 `verify` 全过
+
+---
+
 ## 2026-10-13（第八轮）—— skill 结构重构：主控瘦身，规则可测
 
 这一轮不改能力，改**技能本身的可维护性**：让主控每次触发少烧 token，同时保证一条规则都不丢。

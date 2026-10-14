@@ -66,6 +66,8 @@ python pro/scripts/validate.py out.docx
 
 锚点全部按**操作执行前**的文档状态解析，与 `apply` 的 `edits[]` 契约一致。
 
+**优先用 `bookmark` 锚点。** 文本锚点按「段落文本包含该子串」匹配并取首个命中，一个词既出现在标题又出现在正文（或出现在生成的目录条目里）时会静默落到错的那一段——中文短词（"表格"、"分栏"）尤其容易中招。命中多段时 `extend` 会往 stderr 打一条 warning 并继续（同一改法只会提示一次），但那已经是在事后补救了：真正的解法是在 `apply` 阶段落下命名的书签（Block `anchor` / `format` op 的 `anchor`），`extend` 再用 `{"bookmark": "..."}` 指过去。
+
 ## 操作参考
 
 ### 定位类
@@ -89,7 +91,7 @@ python pro/scripts/validate.py out.docx
 | `customXml` | — | `fields: {}`、`root`（默认 `project`） | `customXml/itemN.xml` + `itemPropsN.xml` + 关系与内容类型 |
 | `xe` | `term` | `at`（不填则追加到最后一段） | 隐藏 `XE "term"` 域标记（`w:vanish`），配合 `index: true` 的 INDEX 域，F9 生成真索引 |
 | `sdt` | `text` | `alias`、`tag`、`style`（默认 `BodyText`）、`at`、`dropdown: [{displayText, value}]`（写了就出下拉列表，`text` 作为当前值） | 块级富文本内容控件（`w:sdt` + `sdtPr` 的 alias/tag/id，可选 `w:dropDownList`）。**必须最后插**——SDT 会阻塞 `apply` 的编辑阶段 |
-| `source` | `tag`、`type`、`fields`、`authors`、`cite: {at, text}` | — | 原生引文/书目：登记 `word/sources.xml`（shared-bibliography.xsd）+ 就地插 `CITATION tag \m` 域。配合 `field` op 插 `BIBLIOGRAPHY` 域，F9 生成完整书目。字段名按 XSD：`Issue`（非 Number）、`StateProvince`、`CountryRegion`；人名 `{"last": "张", "first": "三"}`（字符串 ≤4 字自动按中文姓名拆分，更长视为机构名） |
+| `source` | `tag`、`sourceType`（别名 `type`）、`fields`、`authors`、`citeAt`（别名 `cite: {at, text}`，`text` 作域占位文本） | — | 原生引文/书目：登记 `word/sources.xml`（shared-bibliography.xsd）+ 就地插 `CITATION tag \m` 域。配合 `field` op 插 `BIBLIOGRAPHY` 域，F9 生成完整书目。字段名按 XSD：`Issue`（非 Number）、`StateProvince`、`CountryRegion`。**作者分两类走不同的层**：人名 `{"last": "张", "first": "三"}`（或 ≤4 字字符串）→ `<b:NameList><b:Person>`；机构名（`{"corporate": "ISO/IEC JTC 1"}` 或 >4 字字符串）→ CT_AuthorType 直系的 `<b:Corporate>`——`CT_PersonType` 没有 Corporate 子元素，写进去 XSD 会拒。两类可混写 |
 
 `source` 的 `type` 取 ST_SourceType 枚举：`Book` / `JournalArticle` / `ArticleInAPeriodical` / `BookSection` / `ConferenceProceedings` / `Report` / `Patent` / `Case` / `Film` / `Interview` / `InternetSite` / `DocumentFromInternetSite` 等 19 种。`fields` 键为 `b:` 元素局部名（`Title` / `Year` / `Publisher` / `City` / `JournalName` / `Pages` / `Volume` / `URL` …），白名单外的键直接报错。
 
@@ -105,10 +107,10 @@ python pro/scripts/validate.py out.docx
 
 | op | 关键字段 |
 |---|---|
-| `drawing` | `shape`（预设几何名，默认 `roundRect`）、`text`、`fill`、`line`、`warp`（艺术字变形）、`width` / `height`（厘米）、`anchor`（`t`/`ctr`/`b`）、`insets: [l,t,r,b]`（EMU）、`paragraphs: [{text,size,bold,italic,color,font,align}]`（多段落富文本）、`name`；`symbols` → 符号段落、`ink` → 手写墨迹；`connector: true` → 直线连接线 `straightConnector1`（配合 `flipH` / `flipV` / `line` / `arrow: true`）；**`textBox: true` → 真文本框**（`wps:cNvSpPr txBox="1"`，默认无填充/无边框，配 `paragraphs` 多段落、`insets` 内边距、`anchor` 垂直锚点、`wrapText` 自动换行、`rotation`（度）） |
+| `drawing` | `shape`（预设几何名，默认 `roundRect`）、`text`、`fill`、`line`、`warp`（艺术字变形）、`width` / `height`（厘米）、`anchor`（`t`/`ctr`/`b`）、`insets: [l,t,r,b]`（EMU）、`paragraphs: [{text,size,bold,italic,color,font,align}]`（多段落富文本）、`name`；`symbols` → 符号段落（`[[字体, 码位], …]`，码位可写十六进制 `"2192"`、`U+2192`、十进制数字或**字符本身** `"→"`，一律规范化为 `ST_ShortHexNumber`）；`ink` → 手写墨迹；`connector: true` → 直线连接线 `straightConnector1`（配合 `flipV` / `flipH`（别名 `flipVertical` / `flipHorizontal`）/ `line` / `arrow: true`）；**`textBox: true` → 真文本框**（`wps:cNvSpPr txBox="1"`，默认无填充/无边框，配 `paragraphs` 多段落、`insets` 内边距、`anchor` 垂直锚点、`wrapText` 自动换行、`rotation`（度）） |
 | `canvas` | `children: [{"text": "...", "x": 0.2, "y": 0.9, "width": 3.0, "height": 1.3, "shape": "roundRect", "fill": "...", "textColor": "...", "size": 18}]`（**`x`/`y` 为画布内厘米坐标**，缺省即左上角）、画布 `width` / `height`、`name` |
 | `smartArt` | `kind`（`process` 水平流程 / `cycle` 环形 / `list` 垂直列表 / `hierarchy` 树形）、`nodes: [str \| {text}]`、`width` / `height`、`fill` / `line` / `textColor` / `font` / `size` / `arrow`、`name`。自动计算节点尺寸与连线并置于 `wpc` 画布内（可整体缩放/移动，文字可编辑） |
-| `image` | `part`（包内已有部件，如 `word/media/image1.png`）**或** `file`（本地图片路径，自动写入 `word/media/` 并登记内容类型）、`rid`（不填则自动登记关系）、`crop: [l,t,r,b]`、`lum: [bright, contrast]`、`effects`（`a:effectLst` 内容，可含外层包装；子元素会按 `blur → fillOverlay → glow → innerShdw → outerShdw → prstShdw → reflection → softEdge` 的 XSD 顺序自动重排）、`floating: true` + `wrapText`（`square` 四周型 / `tight` 默认 / `bothSides` / `left` / `right` / `largest`） |
+| `image` | `part`（包内已有部件，如 `word/media/image1.png`）**或** `file`（本地图片路径，自动写入 `word/media/` 并登记内容类型）、`rid`（不填则自动登记关系）、`crop: [l,t,r,b]`、`lum: [bright, contrast]`、`effects`（`a:effectLst` 内容，可含外层包装；子元素会按 `blur → fillOverlay → glow → innerShdw → outerShdw → prstShdw → reflection → softEdge` 的 XSD 顺序自动重排）、`floating: true` + `wrapText`（`square` 四周型 / `tight` 默认 / `bothSides` / `left` / `right` / `largest`）+ 定位 `offsetX` / `offsetY`（厘米，相对锚点行）与 `allowOverlap`（默认 `true`）、`behindDoc`。**浮动图慎用**：锚点定位默认偏移 0，同段落锚多个浮动对象会精确重叠；`wrapText: "square"` 还会挤占栏宽，使同页后续更宽的**嵌入式**图形被推出右页边距。版式关键的图一律用嵌入式（不写 `floating`），浮动只留给刻意的文字环绕效果 |
 | `chart` | `rows`（工作表数据）、`categories`、`series`、`title`、`kind`（默认 `bar`）、`name`、`width` / `height` |
 | `ole` | `rows`（载荷工作簿）、`stream`（默认 `Package`）、`progId`、`name`、`previewPart`（包内已有媒体部件）**或** `previewFile`（本地图片，自动入库）；两者都缺或指向不存在的部件会直接报错，不会留下悬空关系 |
 
