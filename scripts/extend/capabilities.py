@@ -1161,14 +1161,33 @@ def xe_runs(term: str) -> str:
             % esc(term))
 
 
+# CT_DocPartGallery (wml.xsd ST_DocPartGallery) — the Building Blocks
+# Organizer category an SDT `docPartObj` claims membership of, and the
+# `gallery` value a glossary entry may declare. Exact XSD enumeration:
+DOC_PART_GALLERY_VALUES = [
+    "placeholder", "any", "default", "docParts", "coverPg", "eq", "ftrs",
+    "hdrs", "pgNum", "tbls", "watermarks", "autoTxt", "txtBox", "pgNumT",
+    "pgNumB", "pgNumMargins", "tblOfContents", "bib",
+    "custQuickParts", "custCoverPg", "custEq", "custFtrs", "custHdrs",
+    "custPgNum", "custTbls", "custWatermarks", "custAutoTxt", "custTxtBox",
+    "custPgNumT", "custPgNumB", "custPgNumMargins", "custTblOfContents",
+    "custBib", "custom1", "custom2", "custom3", "custom4", "custom5",
+]
+
+
 def sdt_paragraph(text: str, alias: str = "", tag: str = "",
-                  style: str = "BodyText", dropdown=None) -> str:
+                  style: str = "BodyText", dropdown=None,
+                  doc_part_gallery=None) -> str:
     """A block-level rich-text content control (SDT) wrapping one paragraph.
 
     CT_SdtPr child order: rPr?, alias?, tag?, id?, then the control choice.
     No explicit choice element means Word treats it as plain rich text;
     `dropdown` (a list of {displayText, value}) turns it into a drop-down
     list control — that element sits in EG_SdtPrElement, right after `id`.
+    `doc_part_gallery` marks the control as a Building Block instance
+    (`w:docPartObj` + `w:docPartUnique`) — the "插入 → 文档部件" shape.
+    `dropdown` and `doc_part_gallery` are two branches of the same
+    CT_SdtPr choice element and are mutually exclusive.
     """
     pr = ""
     if alias:
@@ -1176,6 +1195,18 @@ def sdt_paragraph(text: str, alias: str = "", tag: str = "",
     if tag:
         pr += '<w:tag w:val="%s"/>' % esc(tag)
     pr += '<w:id w:val="%d"/>' % next_id()
+    if doc_part_gallery is not None:
+        if dropdown:
+            raise ValueError(
+                "sdt: `dropdown` and `docPartGallery` are two branches of "
+                "the same CT_SdtPr choice element — keep one.")
+        if doc_part_gallery not in DOC_PART_GALLERY_VALUES:
+            raise ValueError(
+                "sdt: docPartGallery %r is not a CT_DocPartGallery value "
+                "(valid: %s, ...)" % (doc_part_gallery,
+                                      ", ".join(DOC_PART_GALLERY_VALUES[:12])))
+        pr += ('<w:docPartObj><w:docPartGallery w:val="%s"/>'
+               '<w:docPartUnique/></w:docPartObj>' % esc(doc_part_gallery))
     if dropdown:
         items = "".join('<w:listItem w:displayText="%s" w:value="%s"/>'
                         % (esc(str(i.get("displayText", ""))), esc(str(i.get("value", ""))))

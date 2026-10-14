@@ -101,6 +101,47 @@ Node `validate.js` PASS，PRO `validate.py`（XSD + OPC）PASS。
 
 ---
 
+## 2026-10-14（第十五轮）—— 对照 WPS「插入」选项卡补齐：docPartObj 内容控件 + glossary 封面模板排版
+
+用户拿 WPS「插入」选项卡逐个图标对照后要求「能实现的尽量实现」。盘点结论：选项卡 23 项里
+表格 / 图片 / 形状 / 文本框 / 艺术字 / 图表 / 公式 / 符号 / 批注 / 超链接 / 书签 / 分页 /
+页眉页脚 / 首字下沉 / 封面页（`cover` op）/ 内容控件均已支持并演示；**截屏 / 思维导图 /
+流程图 / 内容块（WPS 云素材）/ 图标库** 依赖宿主云组件，无对应 OOXML 结构，明确不做。
+本轮补齐两个真实缺口：
+
+### `sdt` op 新增 `docPartGallery`（文档部件实例 / `w:docPartObj`）
+
+- CT_SdtPr 的 choice 现在支持第三分支 `w:docPartObj`（`docPartGallery` + `docPartUnique`），
+  即 Word「插入 → 文档部件」落到文档里的控件形态，可被构建基块管理器识别。
+- `docPartGallery` 取值按 `ST_DocPartGallery` 全部 37 个枚举校验（`docParts` / `coverPg` /
+  `autoTxt` / `tbls` / `eq` / `bib` / `tblOfContents` / `custom1-5` …），非法值直接报错
+  而不是等 XSD 拦。与 `dropdown` 互斥（同一 choice 的两个分支），同时给出立即报错。
+
+### `glossary` op 的 `paragraphs` 支持封面排版字段
+
+- 段落对象从 `{text, style}` 扩到 `{text, style?, align?, bold?, italic?, size?(pt),
+  color?(hex), font?, before?/after?(cm/mm/pt/in), pageBreakBefore?}`。
+  之前只能生成一堆无格式段落，做不出像样的 `coverPg` 封面模板；现在居中大标题 +
+  副标题 + 作者信息 + 段前距 + 分页一应俱全，构建基块管理器里看到的封面模板即所见即所得。
+- `align` 白名单 left/center/right/both/justify/distribute；长度单位 cm/mm/pt/in；
+  非法值报错并带回显。
+- gallery 取值现在也按 ST_DocPartGallery 37 值校验（此前透传任意字符串）。
+
+### 演示
+
+主交付文档：① 正文最前实例化一页封面（46pt 微软雅黑标题 + 居中作者/日期 + 分页符）；
+② glossary 注册 `gallery: "coverPg"` 的「演示封面模板」；③ `docPartObj(docParts)`
+内容控件实例。11/11 项 XML 核验命中；「空白页」说明并入手册导语（连续两个分页符）。
+
+### 回归
+
+主交付断言 **68/68 passed**（verify.json 新增 4 条封面 / docPartObj / 空白页断言）；
+`node tests/run.mjs --smoke` → **PASS 95/95**；Node `validate.js` PASS；PRO `validate.py`
+（XSD）PASS。封面插入使段落索引整体 +8，`stage4-revisions.json` 的三处 `paragraph.index`
+锚点已同步重定位（185/188/192 → 193/196/200）。
+
+---
+
 ## 2026-10-13（第十轮）—— 新建 `<w:pgMar/>` 漏写 XSD 必填属性
 
 - **触发**：给一个**没有 pgMar** 的节声明页边距——`pageSetup.sections."1".margins`，封面节是典型场景

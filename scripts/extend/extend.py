@@ -820,9 +820,13 @@ def op_sdt(pkg, root, spec):
                              alias=spec.get("alias", ""),
                              tag=spec.get("tag", ""),
                              style=spec.get("style", "BodyText"),
-                             dropdown=spec.get("dropdown"))
+                             dropdown=spec.get("dropdown"),
+                             doc_part_gallery=spec.get("docPartGallery"))
     nodes = insert_fragment(anchor, frag, spec.get("where", "after"))
-    return "SDT inserted (%d node)" % len(nodes)
+    kind = ("docPartObj(%s)" % spec["docPartGallery"]
+            if spec.get("docPartGallery")
+            else ("dropdown" if spec.get("dropdown") else "richText"))
+    return "SDT inserted (%s; %d node)" % (kind, len(nodes))
 
 
 def op_source(pkg, root, spec):
@@ -993,9 +997,13 @@ def op_glossary(pkg, root, spec):
     """Write `word/glossary/document.xml` — Building Blocks / 自动图文集.
 
     Each entry: {name, paragraphs|xml, gallery?, category?, autoInsert?}.
-    `paragraphs` items are plain text or {text, style?}. Entries show up
-    in Word's Building Blocks Organizer (插入 → 文档部件 / 快速部件) under
-    the declared gallery (autoTxt = 自动图文集). Repeat calls append.
+    `paragraphs` items are plain text or objects: {text, style?, align?,
+    bold?, italic?, size?, color?, font?, before?, after?, pageBreakBefore?}.
+    Alignment/size/color make cover-page (`coverPg`) templates look like
+    real covers instead of a stack of plain paragraphs. Entries show up
+    in Word's Building Blocks Organizer (插入 → 文档部件 / 封面) under
+    the declared gallery (autoTxt = 自动图文集, coverPg = 封面页).
+    Repeat calls append.
     """
     entries = spec.get("entries")
     if not entries:
@@ -1006,10 +1014,63 @@ def op_glossary(pkg, root, spec):
         blocks = ""
         for para in e.get("paragraphs", []):
             if isinstance(para, dict):
-                ppr = ('<w:pPr><w:pStyle w:val="%s"/></w:pPr>' % esc(para.get("style", ""))
-                       if para.get("style") else "")
-                blocks += ('<w:p>%s<w:r><w:t xml:space="preserve">%s</w:t></w:r>'
-                           '</w:p>' % (ppr, esc(str(para.get("text", "")))))
+                text = str(para.get("text", ""))
+                ppr = ""
+                if para.get("style"):
+                    ppr += '<w:pStyle w:val="%s"/>' % esc(para["style"])
+                if para.get("pageBreakBefore"):
+                    ppr += "<w:pageBreakBefore/>"
+                spacing = ""
+
+                def _twips(v):
+                    m = re.match(r"^([0-9.]+)\s*(cm|mm|pt|in)?$", str(v))
+                    if not m:
+                        raise RuntimeError(
+                            "glossary %s: %r is not a length (cm/mm/pt/in)"
+                            % (e.get("name"), v))
+                    val = float(m.group(1))
+                    unit = m.group(2) or "pt"
+                    tw = {"cm": 567, "mm": 56.7, "pt": 20, "in": 1440}[unit]
+                    return str(int(round(val * tw)))
+
+                if para.get("before") is not None or para.get("after") is not None:
+                    if para.get("before") is not None:
+                        spacing += ' w:before="%s"' % _twips(para["before"])
+                    if para.get("after") is not None:
+                        spacing += ' w:after="%s"' % _twips(para["after"])
+                    ppr += "<w:spacing%s/>" % spacing
+                if para.get("align"):
+                    jc = {"left": "left", "center": "center", "right": "right",
+                          "both": "both", "justify": "both",
+                          "distribute": "distribute"}.get(str(para["align"]).lower())
+                    if not jc:
+                        raise RuntimeError(
+                            "glossary align: %r is not left/center/right/"
+                            "both/justify/distribute" % para["align"])
+                    ppr += '<w:jc w:val="%s"/>' % jc
+                rpr = ""
+                if para.get("font"):
+                    rpr += ('<w:rFonts w:ascii="%s" w:hAnsi="%s" w:eastAsia="%s"/>'
+                            % (esc(para["font"]), esc(para["font"]), esc(para["font"])))
+                if para.get("bold"):
+                    rpr += "<w:b/><w:bCs/>"
+                if para.get("italic"):
+                    rpr += "<w:i/><w:iCs/>"
+                if para.get("color"):
+                    rpr += '<w:color w:val="%s"/>' % esc(para["color"])
+                if para.get("size") is not None:
+                    # size is a font size in pt; half-points = pt * 2
+                    m = re.match(r"^([0-9.]+)\s*(pt)?$", str(para["size"]))
+                    if not m:
+                        raise RuntimeError(
+                            "glossary size: %r is not a pt font size "
+                            "(e.g. 48 or \"48pt\")" % para["size"])
+                    half = str(int(round(float(m.group(1)) * 2)))
+                    rpr += ('<w:sz w:val="%s"/><w:szCs w:val="%s"/>' % (half, half))
+                run_pr = "<w:rPr>%s</w:rPr>" % rpr if rpr else ""
+                blocks += ('<w:p>%s<w:r>%s<w:t xml:space="preserve">%s</w:t></w:r>'
+                           '</w:p>' % (("<w:pPr>%s</w:pPr>" % ppr) if ppr else "",
+                                       run_pr, esc(text)))
             else:
                 blocks += ('<w:p><w:r><w:t xml:space="preserve">%s</w:t></w:r>'
                            '</w:p>' % esc(str(para)))
