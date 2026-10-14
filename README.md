@@ -95,12 +95,13 @@ node $SK/scripts/batch_fill.js 合同模板.docx 客户.csv \
 - **"格式合规"不等于"可以交付"。** 用户没要求的改动（页脚多一行书名、多加一行署名）是合规的 XML，也是缺陷。断言管机械那一半，读变更清单管剩下那一半。
 - **看不见的对象要专门查。** 书签没有渲染、没有样式、不加字数：丢一个，文件照样打开、照样通过 XSD，只有 Word 在某句话中间印出"错误！未定义书签。"。`inspect_bookmarks`（人工查看）与 `refsResolve`（机器守门）是唯一会去看它的两处。
 - **内容与结构分离。** 标题 / 列表 / 题注这类"结构信号"由样式、编号、SEQ 域渲染，不写死在文本里。
+- **主控只放规则，细节按需加载。** `SKILL.md` 每次触发都会全量进入上下文，所以它只承载"必须当场知道"的东西：主流程、硬规则、路由索引。长表与语义细节住在 `references/`，用到才读。一条规则只在**一处**定义，别处只做指向 —— `tests/run.mjs` 用契约清单守住这条线：规则可以换个文件放，但不能凭空消失。
 
 ## 目录结构
 
 ```
 docx-master/
-├── SKILL.md              # 技能主入口（给 AI 读的工作流与规则）
+├── SKILL.md              # 技能主入口 —— 主流程 / 硬规则 / 路由索引（细节按需读 references/）
 ├── CHANGELOG.md          # 能力与行为变更（新增 / 修复 / 边界）
 ├── README.md             # 本文件
 ├── scripts/              # 主链路：零依赖 Node + Python lxml
@@ -115,9 +116,24 @@ docx-master/
 │   ├── overview.js       # 与 12 个 inspect_* 侦察工具
 │   ├── _shared/          # 共享模块：OPC 读取、书签分析、定位器、校验器 …
 │   └── extend/           # 扩展写入器（TOC / 书签 / 脚注 / 水印 / 图形 / 图表 / OLE …）
-├── references/           # 领域参考：配置 schema、定位器契约、编号格式、题注、公式 …
+├── references/           # 领域参考：配置 schema、定位器契约、工具全表、编号格式、题注、公式 …
+├── tests/                # 回归测试：结构 / 规则 / 资源 / 链接 四类契约 + smoke case
 └── pro/                  # 可选的 Python 工具链（批注、接受修订、渲染、XSD 校验）
 ```
+
+## 回归测试
+
+零依赖，一条命令：
+
+```bash
+node tests/run.mjs            # 结构 + 规则 + 资源 + 链接 四类契约
+node tests/run.mjs --quiet    # 只打印失败项
+node tests/run.mjs --smoke    # 额外跑 tests/cases/*.json
+```
+
+它回答四个问题：`SKILL.md` 的 frontmatter 与体积是否合规、**契约清单里每条「不许删的硬规则」是否还在**、声明的 references / scripts 是否都存在、所有文档链接（含锚点）是否可解析。改动 skill 之后跑一遍即可。
+
+加规则、加用例的做法见 [`tests/README.md`](tests/README.md)。
 
 ## 依赖
 

@@ -1,11 +1,13 @@
 ---
 name: docx-master
-description: "Standardize, edit, or audit a Word (.docx / .dotx) document via direct OOXML mutation. Core CLIs: `apply` (the unified writer — install styles + numbering + theme + template, restyle by pattern / fingerprint, insert content via edits, all in one config), `audit` (read-only conformance check, no file written), `extend` (JSON-driven post-processing for what the writer deliberately skips — TOC / table-of-figures / index fields, footnotes & endnotes, watermarks, page borders, shapes / text boxes / canvas / WordArt / SmartArt-equivalent diagrams, charts, OLE objects, glossary building blocks, cover pages, custom XML), plus `batch_fill` (one template + a CSV / JSON data table → one finished document per row — mail merge without Word), and the delivery layer: `pipeline` (declare a multi-step chain once; one command runs it, aborting on the first failure) + `verify` (declarative delivery assertions and a change manifest — catches the defects no schema validator can see) + `doctor` (environment capability probe). Common config shapes inside `apply`: standardize (role-based whole-doc reshape — paragraph classification, named styles, multi-level auto-numbering, template import), edit (location-based surgical changes — replace/insert/delete paragraphs, table cells, image embedding, optional tracked changes). Use whenever the user wants to format / restyle / normalize / edit / audit a Word document. Also covers adding comments (批注), accepting tracked changes, legacy `.doc` → `.docx` conversion, and rendering pages for visual verification through the vendored python toolchain under `pro/` (see references/pro-toolchain.md). Do NOT use for: PDFs, spreadsheets, or plain-text / Markdown source files (unless the task is specifically to *output* a docx)."
+description: "Standardize, restyle, edit, or audit Word (.docx / .dotx) documents by mutating OOXML directly — semantic styles + multi-level numbering, template import, content insertion (paragraphs / tables / images / equations), captions & cross-references, headers / footers, page setup, comments (批注), tracked changes, footnotes, TOC / watermarks / shapes / charts via `extend`, batch mail-merge, and a delivery gate (`pipeline` / `verify` / `doctor`). Use for any format / normalize / restyle / edit / audit / generate-a-Word-document task. Also: legacy `.doc` → `.docx` conversion and page rendering for visual checks. Do NOT use for PDFs, spreadsheets, or plain-text / Markdown sources (unless the task is specifically to *output* a docx)."
 ---
 
 # docx-master
 
-Mutates Word (.docx / .dotx) OOXML directly: produce well-formed documents from messy templates, install styles + numbering, convert hand-typed prefixes to auto-numbering, insert content, audit conformance. Output is a new docx; the original is never touched. Legacy binary `.doc` is not understood by the Node engine — convert first via `python pro/scripts/soffice.py --headless --convert-to docx file.doc` (see references/pro-toolchain.md).
+Mutates Word (.docx / .dotx) OOXML directly: produce well-formed documents from messy templates, install styles + numbering, convert hand-typed prefixes to auto-numbering, insert content, audit conformance. Output is a new docx; the original is never touched. Legacy binary `.doc` is not understood by the Node engine — convert first via `python pro/scripts/soffice.py --headless --convert-to docx file.doc` (see [pro-toolchain.md](references/pro-toolchain.md)).
+
+**How this file works.** Contract + routing index; details live in `references/` and load **on demand** — when a rule names a reference, read it *before* designing the config that depends on it.
 
 ## How to think about formatting
 
@@ -13,41 +15,39 @@ User prompt overrides everything below.
 
 Otherwise, treat a document as two kinds of paragraphs:
 
-- **Content chrome** — paragraphs with typed text already in the document (chapter markers, instruction notes, fixed labels). Three operations:
-  - **Preserve typography** (font / size / spacing / indent — direct `pPr` / `rPr`). Engine's selective-strip keeps direct format as long as the new style doesn't override the same attribute.
+- **Content chrome** — paragraphs already carrying typed text (chapter markers, instruction notes, fixed labels). Three operations:
+  - **Preserve typography** (font / size / spacing / indent — direct `pPr` / `rPr`); the engine's selective-strip keeps it unless the new style overrides the same attribute.
   - **Retag structure** (bind `pStyle`, strip typed structural prefixes via `pattern_rules`, install matching `numbering`). Chapter / heading / list / caption markers are structure, not typography — they belong to auto-numbering or SEQ fields. Existing typed prefixes are the **input** to retagging, not output to preserve.
   - **Don't replace, don't duplicate.** A chrome paragraph stays as itself — never the target of `replace`, never quoted into an inserted paragraph's `text`. Content insertion lands in the empty placeholder slot beside the chrome (`set-run` on inline blanks; `replace` against the empty slot for separate-paragraph forms).
 - **Empty slots** — blank paragraphs pre-allocated for content insertion. Bind inserted content to a semantic style (`BodyText` / `ListNumber` / `Heading1..N`), installing the style in `styles[]` if no existing one fits. `Normal` is fallback, not a body style.
 
-**For `styles[]`**: one style per semantic role. If the role has any paragraph already playing it in the source, the entry MUST use `fromParagraph: N` — do not redeclare top-level typography fields on represented roles (silent template override). Full rule and rationale: [standardize.md §1](references/standardize.md).
+**For `styles[]`**: one style per semantic role. If the role has any paragraph already playing it in the source, the entry MUST use `fromParagraph: N` — do not redeclare top-level typography fields on represented roles (silent template override). Rationale: [standardize.md §1](references/standardize.md#1-style-roles--typography).
 
 Tools surface visible facts; classification and judgment are yours.
 
-**Standardize-shape blocks install the canonical anchors every other op binds to** — `edits[]` `styleId` + MDF, `pattern_rules` fingerprints, `InlineRef` / STYLEREF resolution. Every paragraph the agent writes is canonical: typed structural signals (heading / list / caption prefixes, in-prose counters) never appear as literal text in the emit; install the matching anchor (`numbering` / `captions` / bookmark) and let it render the signal. Source chrome the task doesn't restructure stays as-is. User-supplied content that arrives with typed prefixes is input shape, not a directive to preserve them — strip the prefix and emit each typed-prefix line as a **separate** paragraph bound to a heading / list / caption style, unless the user explicitly requested literal typed form.
+Standardize-shape blocks install the canonical anchors every other op binds to (`edits[]` `styleId` + MDF, `pattern_rules` fingerprints, `InlineRef` / STYLEREF resolution). Typed structural signals (heading / list / caption prefixes, in-prose counters) never appear as literal text in the emit. User-supplied content arriving with typed prefixes is input shape, not a directive to preserve them: strip the prefix and emit each typed-prefix line as a **separate** paragraph bound to a heading / list / caption style, unless the user explicitly asked for literal typed form.
 
 ## Target state
 
-A well-formed Word document expresses structure through **styles + numbering + sections + SEQ fields**, not typed text mimicking structure. When designing the reshape:
+Structure comes from **styles + numbering + sections + SEQ fields**, not typed text mimicking structure:
 
-- Every paragraph carries a semantic styleId (Heading1..N / BodyText / ListNumber / Caption / etc.); direct paragraph format only as one-off exceptions.
-- Numbering: one unified multi-level scheme bound to heading styles; separate single-level schemes per list-bound style. Auto-numbering markers come from the scheme, never typed in `text`.
-- Captions (figures / tables / equations) use top-level `captions` config + `CaptionBlock` / `EquationBlock` — SEQ + STYLEREF fields, not `pattern_rules`. **Placement: figure / equation captions go below; table captions go above.** See [`references/captions.md`](references/captions.md).
-- Cross-references (any cite to an auto-numbered target — figures, tables, sections, equations, reference entries) use `InlineRef` nodes in `edits[]`, never typed counters. Literal counters silently desync when a target moves; REF fields stay correct. Page-number cites out of scope. See [`references/cross-references.md`](references/cross-references.md).
+- Every paragraph carries a semantic styleId (Heading1..N / BodyText / ListNumber / Caption / …); direct format only as one-off exceptions.
+- Numbering: one unified multi-level scheme for headings; separate single-level schemes per list-bound style. Markers come from the scheme, never typed in `text`.
+- Captions (figures / tables / equations) use top-level `captions` config + `CaptionBlock` / `EquationBlock` — SEQ + STYLEREF fields, not `pattern_rules`. **Placement: figure / equation captions go below; table captions go above.** See [captions.md](references/captions.md).
+- Cross-references (any cite to an auto-numbered target — figures / tables / sections / equations / reference entries) use `InlineRef` in `edits[]`, never typed counters — literal counters silently desync when a target moves, REF fields stay correct. Page-number cites out of scope ([cross-references.md](references/cross-references.md)).
 - Heading levels nest without skipping.
-- Match content shape to slot shape — prose to body, list to `ListNumber` / `ListBullet`, figure / table / equation to their `*Block` types with `captionId`. Per-block schemas in [`references/edit.md`](references/edit.md).
-- Locale: CJK prose body and list items get a 2-char first-line indent (`firstLineIndent: "2char"`). No typed spaces at CJK ↔ Latin / digit boundaries; Word's autoSpace handles them. Chinese font sizes: [`references/chinese-font-sizes.md`](references/chinese-font-sizes.md).
-- CJK/Latin spacing audit: every write reports advisory Pangu findings (missing or redundant space at CJK ↔ Latin / digit boundaries) in `lint.pangu` — in `edits[]` text and `headerFooter` text. **Advisory only, never blocks the write.** Deliberate spacing → silence it with `lint.panguSpacing: false`.
+- Match content shape to slot shape — prose → body, list → `ListNumber` / `ListBullet`, figure / table / equation → their `*Block` types with `captionId` ([edit.md](references/edit.md)).
+- Locale: CJK body / list items get a 2-char first-line indent (`firstLineIndent: "2char"`); no typed spaces at CJK ↔ Latin / digit boundaries. Font sizes: [chinese-font-sizes.md](references/chinese-font-sizes.md).
+- Every write reports advisory Pangu findings (CJK ↔ Latin / digit spacing) in `lint.pangu` for `edits[]` and `headerFooter` text — **never blocks the write**. Deliberate spacing → `lint.panguSpacing: false`.
 
 ## Commands
 
-| Command | When | Reference |
-|---|---|---|
-| **`apply`** | The unified writer. Install styles + numbering + theme + template, restyle by pattern / fingerprint, insert content via edits — single config, single call. | [standardize.md](references/standardize.md) + [edit.md](references/edit.md) |
-| `audit` | Read-only conformance check workflow. No CLI; uses the inspect tools to produce a violation report. | [audit.md](references/audit.md) |
-| **`extend`** | Post-processing for what the engine deliberately does not write: TOC / table-of-figures / index fields, footnotes & endnotes, VML watermarks, page borders & background, shapes / text boxes / canvas / WordArt / SmartArt-equivalent diagrams, charts, OLE objects, glossary (Building Blocks), cover pages, custom XML, anchored raw-fragment insertion. JSON-driven, Python + lxml. | [extend.md](references/extend.md) |
-| **`pipeline`** | One-command rebuild of a multi-step chain (config source → `apply` → `extend` → validate → verify). Aborts on the first failure; auto-validates the deliverable; `--plan` / `--emit-script` for environments that cannot spawn. | [§ Delivery gate](#delivery-gate) |
-| **`verify`** | The delivery gate itself: declarative assertions (exit 1 on failure) + change manifest vs. a baseline. | [§ Delivery gate](#delivery-gate) |
-| `doctor` | Environment capability probe. Run first on an unfamiliar machine. | [§ Delivery gate](#delivery-gate) |
+- **`apply`** — the unified writer: install styles + numbering + theme + template, restyle by pattern / fingerprint, insert content via edits. One config, one call. → [standardize.md](references/standardize.md) + [edit.md](references/edit.md)
+- `audit` — read-only conformance check workflow; no CLI, uses the inspect tools to produce a violation report. → [audit.md](references/audit.md)
+- **`extend`** — post-processing for what the engine deliberately does not write: TOC / table-of-figures / index fields, footnotes & endnotes, watermarks, page borders, shapes / text boxes / canvas / WordArt / diagrams, charts, OLE, glossary, cover pages, custom XML. → [extend.md](references/extend.md)
+- **`pipeline`** — one-command rebuild of a multi-step chain (config source → `apply` → `extend` → validate → verify); aborts on first failure, auto-validates the deliverable, `--plan` / `--emit-script` when child processes are forbidden. → [delivery-gate.md](references/delivery-gate.md)
+- **`verify`** — the delivery gate: declarative assertions (exit 1 on failure) + change manifest vs. a baseline. → [delivery-gate.md](references/delivery-gate.md)
+- `doctor` — environment capability probe; run first on an unfamiliar machine. → [delivery-gate.md](references/delivery-gate.md)
 
 `apply` pipeline order:
 
@@ -61,217 +61,91 @@ merge runs (pre-pass — only when `mergeRuns: true` / `--merge-runs`)
   → validate, write
 ```
 
-Need fields / notes / watermarks / drawings / charts? Run `extend` on `apply`'s output —
-the two are complementary, not alternatives ([`references/extend.md`](references/extend.md)).
-It re-declares root namespaces for every part it touches and keeps rendering namespaces
-(`wps` / `wpg` / `wpc`) out of `mc:Ignorable`; ordering and part registration are handled
-for you ([`references/element-order.md`](references/element-order.md),
-[`references/ooxml-extension-points.md`](references/ooxml-extension-points.md)).
+Need fields / notes / watermarks / drawings / charts? Run `extend` on `apply`'s output — the two are complementary, not alternatives. It re-declares root namespaces per part, keeps rendering namespaces (`wps` / `wpg` / `wpc`) out of `mc:Ignorable`, and handles ordering + part registration ([element-order.md](references/element-order.md), [ooxml-extension-points.md](references/ooxml-extension-points.md)).
 
 Sparse by design — only declared blocks apply; untouched styles / numbering / paragraphs / theme stay as they are. **Declare only what's wrong, missing, or what the user explicitly asks to change.**
 
-**Creating from scratch.** Omit `source` to scaffold from the bundled blank template (one empty Normal paragraph, A4 portrait, no other styles or numbering). Declare what you need in the usual blocks (`styles` / `numbering` / `pageSetup` / `headerFooter` / `edits`); `styles[]` must use Mode B (direct fields) since the blank has no representative paragraphs to extract from. The empty paragraph at index 1 is a `replace` or `insert-after` target (`insert-before` creates a stray leading empty paragraph; `delete` would empty the body). Incompatible with `template` (transplanting from a template into a blank is conceptually inconsistent — start with a host source if you need template-import).
+**Creating from scratch.** Omit `source` to scaffold from the bundled blank template (one empty Normal paragraph, A4 portrait). `styles[]` must use Mode B (direct fields) — there is nothing to extract from. Paragraph 1 is a `replace` / `insert-after` target (`insert-before` leaves a stray leading empty paragraph; `delete` would empty the body). Incompatible with `template`.
 
-**Documents of unknown provenance.** Word-authored files — and anything round-tripped through another tool — fragment a paragraph's text across many runs (revision ids, spell-check markers), so a phrase visible on the page is often not one contiguous string in the XML. Text-matched anchors and `set-run` then silently miss it. Two ways to fix that before you design anything:
-
-- `node scripts/merge_runs.js <file>` — standalone pre-pass; rewrites the file (or `-o` elsewhere).
-- `mergeRuns: true` in the config (CLI: `--merge-runs`) — `apply` merges before it parses anything, so every index you write refers to the merged layout.
-
-Rendering is unchanged either way, and runs inside different `<w:ins>` / `<w:del>` wrappers are never joined.
+**Documents of unknown provenance.** Word-authored files (and anything round-tripped through another tool) fragment a paragraph's text across many runs, so a phrase visible on the page is often not one contiguous string in the XML and text-matched anchors / `set-run` silently miss it. Fix before designing anything: `node scripts/merge_runs.js <file>` as a standalone pre-pass, or `mergeRuns: true` (CLI `--merge-runs`) so `apply` merges before it parses and every index you write refers to the merged layout. Rendering is unchanged either way; runs inside different `<w:ins>` / `<w:del>` wrappers are never joined.
 
 ## Workflow
 
-1. **Survey.** `overview` first. From the output, note:
-   - **Existing structure** — Heading levels, numbering schemes (with consumption counts; 0 = orphan), fingerprints, document skeleton.
-   - **Content chrome formatting** — what direct `pPr` / `rPr` content paragraphs carry. This IS the document's typographic convention; preserve it by not redeclaring those attributes on the re-tagging styles.
-   - **Typed structural prefixes** — heading shapes (`第N章`, `一、`, `1.1`, `（一）`) feed `pattern_rules`; caption shapes (`图 2.1`) and in-prose counters (`如图 3.2`) feed caption / cross-ref migration via `edits[]` (different mechanism).
-   - **Form-fill paragraphs** — text shaped like `label + whitespace gap` or `label + ____ underscore placeholder`. The blank is usually a separate run with `<w:u/>`. Note indices for Step 2.
-   - **Source content** (fill tasks) — the structural outline of what will land: which semantic roles appear (Heading 1..N, BodyText, ListNumber/Bullet, Caption, inline cross-refs), heading depth, list / figure / table / equation presence.
-2. **Design ONE config.** Plan styles first based on the content's structural outline; route in one config. Six config blocks (`styles` / `numbering` / `pattern_rules` / `bulk_rules` / `assignments` / `exclude` / `edits`) detailed in [standardize.md §1–§3](references/standardize.md) and [edit.md](references/edit.md). Reactive additions accrete debt.
-3. **Dry-run.** `apply --dry-run` first. The change report's signals (Style Resolution / Sample Affected / Implicit-keep failure / unmatched stripPrefix) — see [standardize.md §5](references/standardize.md).
+1. **Survey.** `overview` first. Note from its output: **structure** (heading levels, numbering schemes with consumption counts — 0 = orphan, fingerprints, skeleton); **chrome formatting** (the direct `pPr` / `rPr` content paragraphs carry — this IS the document's typographic convention, so don't redeclare those attributes on re-tagging styles); **typed structural prefixes** (heading shapes `第N章` / `一、` / `1.1` feed `pattern_rules`; caption shapes and in-prose counters feed caption / cross-ref migration via `edits[]`); **form-fill paragraphs** (`label + gap`, or `label + ____` with a `<w:u/>` run); **source content** for fill tasks (roles that will land, heading depth, list / figure / table / equation presence).
+2. **Design ONE config.** Plan styles first from the content's structural outline; route in one config. Config blocks (`styles` / `numbering` / `pattern_rules` / `bulk_rules` / `assignments` / `exclude` / `edits`) — see [standardize.md §1–§3](references/standardize.md) and [edit.md](references/edit.md). Reactive additions accrete debt.
+3. **Dry-run.** `apply --dry-run` first; read the change report's signals (Style Resolution / Sample Affected / Implicit-keep failure / unmatched stripPrefix) against intent — see [standardize.md §5](references/standardize.md).
 4. **Apply.** Output is a fresh docx; the original is never modified.
+
+**Keep reconnaissance cheap.** These tools emit hundreds of lines on a real document — pass truncation flags (`overview --paras=A..B|none`, `--limit N`, `--problems-only`, `--json`, `--quiet`) so only the needed slice enters context; fetch a fact once and reuse it. Full list: [tools.md](references/tools.md) § 输出裁剪.
 
 ## Asking the user
 
-Default first. Don't ask unless one of the cases below applies:
-- typed sentinel mid-prose vs. heading
-- bold paragraph as sub-heading vs. emphasis
-- missing source content for template slots
-- unsupported structures (manual TOC body, page-number cites)
-- font / spacing prompt without explicit scope (theme layer vs `Normal` cascade vs per-role `styles[]` — see [standardize.md "Font scope layers"](references/standardize.md))
+Default: don't ask. Ask only for — typed sentinel mid-prose vs. heading · bold paragraph as sub-heading vs. emphasis · missing source content for template slots · unsupported structures (manual TOC body, page-number cites) · font / spacing scope ambiguity (theme layer vs `Normal` cascade vs per-role `styles[]` — [standardize.md "Font scope layers"](references/standardize.md#font-scope-layers)).
 
 ## Out of scope
 
-Surface to the user when blocked by: layout-**table** restructuring, TOC body content, page-number cites. Paragraphs *inside* layout-table cells ARE indexed and fully editable; only the table holding them is off-limits.
+**Blocked — surface to the user:** layout-**table** restructuring, TOC body content, page-number cites. Paragraphs *inside* layout-table cells ARE indexed and fully editable; only the table holding them is off-limits.
 
-Footnotes / endnotes are **NOT** out of scope. What is out of scope is only their *indexing*: `apply`'s paragraph index covers `word/document.xml`, so note bodies stored in `word/footnotes.xml` / `word/endnotes.xml` never appear in the skeleton and are not reachable by `#NNN` locators. Inserting and populating them is fully supported through `extend` — `{"op": "footnote"}` / `{"op": "endnote"}` creates the part, registers the relationship and backfills the id ([`references/extend.md`](references/extend.md)).
+**Supported, despite looking out of scope:** footnote / endnote *bodies* via `extend` (`{"op": "footnote"}` / `"endnote"}` creates the part + relationship + id — only their *indexing* is absent, since note bodies live in `word/footnotes.xml` / `word/endnotes.xml`); comments (批注) via PRO `comment.py`; page setup + headers / footers, including per-section overrides ([extend.md](references/extend.md), [config-schema.md §page setup](references/config-schema.md#page-setup), [header-footer.md](references/header-footer.md)).
 
-Comments (批注) are NOT off-limits any more — add them through the PRO toolchain below (`pro/scripts/comment.py`).
+## Tool index
 
-Page setup (paper size, orientation, margins, columns, page-number format) and headers / footers ARE supported, including per-section overrides — see [`config-schema.md`](references/config-schema.md#page-setup) and [`references/header-footer.md`](references/header-footer.md).
+All tools run as `node <script> <args>` → stdout. Write / delivery commands are in § Commands above; **完整调用、参数与输出裁剪 → [tools.md](references/tools.md)**。
 
-## Tool Reference
-
-All tools invoked via `node <script> <args>`, output to stdout.
-
-| Tool | Invocation | When to Use |
-|------|------------|-------------|
-| `overview` | `node scripts/overview.js <file> [--paras=A..B\|none] [--include-unused]` | First call on any task. Metadata, page setup, theme, style defs, numbering schemes (with `used by N paragraphs` count — 0 flags orphans), visual style statistics with **direct-format per fingerprint** (drives "don't redeclare" rule), document skeleton. `--paras` slices or drops the skeleton; `--include-unused` shows usage=0 styles. |
-| `inspect_range` | `node scripts/inspect_range.js <file> <from> <to>` | Full text and computed styles for a paragraph range. |
-| `inspect_runs` | `node scripts/inspect_runs.js <file> <para>` | Per-run rPr dump. Use for paragraphs with mixed run-level formatting OR **form-fill segments** (label + underscore-blank pattern). |
-| `inspect_neighbors` | `node scripts/inspect_neighbors.js <file> <para> [--radius N]` | What surrounds a paragraph. First choice for figure-caption / table-caption / first-after-heading classification. |
-| `inspect_style` | `node scripts/inspect_style.js <file> <fingerprint>` | What role a fingerprint plays. `<fingerprint>` accepts letter label or 6-char hash. |
-| `inspect_style_def` | `node scripts/inspect_style_def.js <file> <styleId>` | Pre-defined styles in `styles.xml` and their `basedOn` chain. Use before reusing or overriding an existing styleId. |
-| `inspect_section` | `node scripts/inspect_section.js <file> <index>` | Page setup differences between sections. |
-| `inspect_table` | `node scripts/inspect_table.js <file>` | Top-level tables with `[row,col]` cell snippets and per-cell paragraph-index spans. Use before composing a `cell` locator or a `range` touching table content. |
-| `inspect_blockers` | `node scripts/inspect_blockers.js <file>` | Paragraphs `apply`'s edit phase will refuse — tracked changes, complex fields, SDT controls. |
-| `inspect_bookmarks` | `node scripts/inspect_bookmarks.js <file> [--json] [--problems-only]` | Bookmarks, every reference that names one (REF / PAGEREF / `HYPERLINK \l` / `TOC \b` / `w:anchor`), and the ones that resolve to nothing. Non-zero exit on a dangling reference or a malformed bookmark. |
-| `inspect_caption` | `node scripts/inspect_caption.js <file> [identifier]` | SEQ-based captions in the document. See [captions.md](references/captions.md). |
-| `migrate_captions` | `node scripts/migrate_captions.js <file> [--style <styleId>]...` | Read-only detector for manually-numbered caption-shaped paragraphs (`图 2.1` typed, no SEQ). Agent uses the output to write apply config converting them to `CaptionBlock`. |
-| `find_paragraphs` | `node scripts/find_paragraphs.js <file> --regex <pat> [--flags <flags>] [--limit N] [--fingerprint X]` | Cross-document paragraph regex. Validate `pattern_rules` coverage before applying. |
-| `find_text` | `node scripts/find_text.js <file> <pattern> [--regex] [--paragraph N \| --range A-B] [--limit N] [--context N]` | Character-level locator. Returns paragraph index, run index, char offset, length, structural-region annotations. Pair with `inspect_runs` for rPr or with `set-run` to replace at `runIndex`. |
-| `merge_runs` | `node scripts/merge_runs.js <file.docx> [-o out.docx] [--parts headers,footers,notes,all] [--dry-run]` | Coalesce adjacent identically-formatted runs (also strips `rsid*` attributes and `<w:proofErr>` markers). **Run before a surgical edit on a document of unknown provenance** — Word fragments a paragraph's text across many runs, so a phrase visible on the page is often not one contiguous string in the XML and `find_text` / `set-run` miss it. Rendering unchanged, revision wrappers preserved. |
-| `batch_fill` | `node scripts/batch_fill.js <template.docx> <data.csv\|data.json> --out-dir <dir> [--name "{{字段}}.docx"] [--name-field <col>] [--parts all] [--delims "{{,}}"] [--limit N] [--strict] [--dry-run] [--validate]` | Mail merge without Word: one template + one data table → one document per row. Placeholders `{{field}}`, `{{field\|fallback}}`, `{{_index}}` / `{{_row}}`. Stitches placeholders Word split across runs, turns `\n` into `<w:br/>` and `\t` into `<w:tab/>`, and fills headers / footers / notes as well as the body. Pre-flight reports template-vs-column mismatches (missing → left as-is, or fatal with `--strict`) and unused columns. |
-| `validate` | `node scripts/validate.js <file>` | Schema-aware OOXML check. `apply` runs this automatically; standalone for spot-checking arbitrary .docx files. |
-| `apply --dry-run` | `node scripts/apply.js --dry-run <config.json>` | Iterate on a config without writing. **Use between every config edit.** |
-| `apply` | `node scripts/apply.js <config.json>` | Unified writer. Default for any write task. |
-| `pipeline` | `node scripts/pipeline.js <build.json> [--plan] [--emit-script [out.sh]] [--dry-run] [--no-auto-validate] [--python <exe>]` | Runs a declared multi-step chain in order with one exit code, aborting on the first failure (`set -e` semantics when emitted as a script). Auto-appends schema validation when the manifest declares none. `--plan` prints the chain; `--emit-script` writes it as a bash script — the fallback when child processes are unavailable. |
-| `verify` | `node scripts/verify.js <verify.json \| file.docx> [--diff <baseline.docx>] [--json] [--quiet]` | The delivery gate: runs declarative assertions (non-zero exit on any failure) and, with a baseline, prints the change manifest. Zero-dependency; reads the OPC package directly. |
-| `doctor` | `node scripts/doctor.js [--json] [--python <exe>]` | Reports which capabilities are actually available (Node engine, subprocess spawning, Python+lxml, LibreOffice, pdftoppm, pandoc, npm docx) and what each missing one disables. Always exits 0 — it is a report, not a gate. |
-
-**`batch_fill` semantics.** Placeholders are matched against the **merged** layout, not the file's run fragmentation: runs are merged once across every participating part, then a placeholder still spanning a run boundary is stitched (a boundary only survives merging when the two runs differ in `rPr`). The value lands in the run that carried the placeholder's **first** character, so that run's `rPr` decides how the inserted text looks; the runs it spanned are emptied, never deleted, so bookmarks / fields / comment anchors around them keep their positions. A placeholder with no matching column is left exactly as written (`--strict` makes that fatal instead); `{{field|fallback}}` supplies replacement text. The template itself is never modified — every row produces a fresh copy. Pass `--validate` (or run `validate.js` afterwards) before delivering a batch.
+- `overview` — always first: structure, page setup, theme, style defs, numbering usage, fingerprints, skeleton
+- `inspect_range` · `inspect_runs` · `inspect_neighbors` — paragraph range + computed styles · per-run rPr (also form-fill segments) · surrounding paragraphs (caption / first-after-heading)
+- `inspect_style` · `inspect_style_def` — role a fingerprint plays · existing `styleId` definitions + `basedOn` chain
+- `inspect_section` · `inspect_table` — page-setup differences between sections · top-level tables with cell spans
+- `inspect_blockers` — paragraphs the edit phase refuses: tracked changes, complex fields, SDT
+- `inspect_bookmarks` — bookmarks + references naming one + dangling ones (non-zero exit on problems)
+- `inspect_caption` · `migrate_captions` — existing SEQ captions · detector for hand-numbered caption paragraphs
+- `find_paragraphs` · `find_text` — paragraph regex · character-level locator (paragraph / run / offset)
+- `merge_runs` — coalesce fragmented runs; before a surgical edit on unknown-provenance files
 
 ## PRO toolchain (optional extension)
 
-The Node engine above stays the default and remains zero-dependency. Reach for the vendored Python toolchain under `pro/` (integrated from the `docx-pro` skill on 2026-10-10) only for what it uniquely covers:
+The Node engine is the default and zero-dependency. The vendored Python toolchain under `pro/` covers only what Node cannot — **comments**, **accepting tracked changes**, **legacy `.doc` conversion**, **render-to-image verification**, **XSD / redlining check**, **element-order lookup**, docx-js footguns.
 
-| Need | Tool |
-|---|---|
-| Add a comment (6-file comment set + anchor markers) | `python pro/scripts/comment.py <docx\|unpacked/> "text" [--parent N] [-o out.docx]` |
-| Accept all tracked changes → clean copy | `python pro/scripts/accept_changes.py in.docx out.docx` |
-| Coalesce fragmented runs so text becomes findable | **Node (preferred):** `node scripts/merge_runs.js <docx\|dotx> [-o out.docx] [--parts headers,footers,notes,all] [--dry-run]` — same semantics as the Python version, and unlike it can also cover headers / footers / notes. Python fallback, for an already-unpacked directory: `python pro/scripts/merge_runs.py unpacked/` |
-| Convert a legacy `.doc` (or anything LibreOffice reads) to `.docx` | `python pro/scripts/soffice.py --headless --convert-to docx file.doc` · self-check with `python pro/scripts/soffice.py --check` |
-| XSD check + redlining completeness (`--author`) | `python pro/scripts/validate.py out.docx --original src.docx [--author "name"] [--auto-repair]` |
-| Look up the XSD-mandated child order of any element | `python pro/scripts/element_order.py --type CT_SectPr CT_PPr` / `--list` / `--doc` (regenerates [`references/element-order.md`](references/element-order.md)) |
-| Render to images and eyeball the layout | `python pro/scripts/soffice.py --headless --convert-to pdf x.docx` → `pdftoppm -jpeg -r 100 x.pdf page` → Read `page-*.jpg` |
-| Create from scratch with docx-js (npm `docx`) | Footgun list in [`pro/zh-CN.md`](pro/zh-CN.md) |
-
-Dependency state on this machine: `defusedxml` + `lxml` installed in `envs/default`; `pandoc` / LibreOffice (`soffice`) / `pdftoppm` / npm `docx` are **NOT installed** — install them before using the render-verify, `.doc` conversion, or docx-js paths, otherwise stay on the Node engine (`validate.js` covers schema checking).
-
-Routing rules, boundary conflicts, and the full workflows: [`references/pro-toolchain.md`](references/pro-toolchain.md).
+On this machine Python + `defusedxml` + `lxml` are installed but **`pandoc` / `soffice` / `pdftoppm` / npm `docx` are NOT** — install before using the render-verify, `.doc` conversion, or docx-js paths. Full routing table, invocation conventions (run from `pro/scripts/`), boundary conflicts, fallback: [pro-toolchain.md](references/pro-toolchain.md).
 
 ## Delivery gate
 
-Schema validation (`validate`, PRO `validate.py`) answers one question: *is this
-file well-formed?* It cannot answer the other one: *is this what the user asked
-for?* A footer carrying a title nobody requested validates perfectly. Both
-questions get answered before handover, so delivery is a gate, not a final
-`validate` call:
+Schema validation answers *is this file well-formed?* — never *is this what the user asked for?* A footer carrying an unrequested title validates perfectly. Both get answered before handover:
 
-| # | Step | Command | Fails when |
-|---|---|---|---|
-| 1 | Probe the environment | `node scripts/doctor.js` | never — it reports which optional paths (render / soffice / pandoc) are live, so you learn at minute one instead of step nine |
-| 2 | Dry-run each config edit | `node scripts/apply.js --dry-run <cfg>` | the config is invalid |
-| 3 | Run the whole chain | `node scripts/pipeline.js build.json` | any step fails — the chain aborts and later steps never run |
-| 4 | Assert the artifact | `node scripts/verify.js verify.json` | any assertion fails |
-| 5 | Read the change manifest | `node scripts/verify.js <out.docx> --diff <src.docx>` | never — but every line must be defensible against the user's words |
+1. Probe — `node scripts/doctor.js`: always exits 0 (a report, not a gate)
+2. Dry-run each config edit — `node scripts/apply.js --dry-run <cfg>`
+3. Run the whole chain — `node scripts/pipeline.js build.json`: aborts on first failure, auto-appends validation
+4. Assert the artifact — `node scripts/verify.js verify.json`: exit 1 on any failed assertion
+5. Read the change manifest — `node scripts/verify.js <out.docx> --diff <src.docx>`: every line must be defensible against the user's words
 
-Steps 3 and 4 wire together: declare `"verify"` in the pipeline manifest and a
-failed assertion fails the build. A build may not finish unvalidated — if no
-`validate` step is declared, the pipeline appends one for the deliverable.
+**Schema-valid is not delivery-ready.** Write assertions *before* the config — the requirements stated mechanically, the only guard against the defect class no schema check can see. 全量断言类型、`--emit-script` 降级路径、变更清单读法、人工自检 → **[delivery-gate.md](references/delivery-gate.md)**。
 
-**When the environment forbids child processes** (sandboxed agents), step 3
-becomes `--plan` (print the resolved chain) or `--emit-script` (write a `set -e`
-bash script); `bash <script>` gives the same abort-on-first-failure contract in
-one command, and a non-zero exit from it *is* the build result. `doctor` reports
-this capability explicitly — checked before you plan a long task, not during one.
+## Hard rules
 
-### Assertions encode intent
+The rules **you** must actively follow. What the engine handles on your behalf — namespace
+repair, `settings` idempotence, `docProps` refresh, style-name preflight, restyle semantics —
+is a separate list: [engine-behavior.md](references/engine-behavior.md). Read it when designing
+a config that touches those points.
 
-Write assertions before the config: they are the user's requirements stated
-mechanically. Their whole purpose is the defect class no schema check can see:
-
-```json
-{ "type": "notContains", "text": "My Book", "scope": "footer" },
-{ "type": "footerText", "regex": "^\\s*第\\s*<PAGE>\\s*页\\s*\\/\\s*共\\s*<NUMPAGES>\\s*页\\s*$" },
-{ "type": "hasField", "field": "TOC", "scope": "body" },
-{ "type": "refsResolve" }
-```
-
-The first line exists because a footer carrying an unrequested title is
-perfectly well-formed XML that passes every validator. `<PAGE>` is the field
-marker: cached field *results* are ignored, so assertions survive repagination
-and don't depend on what Word last computed.
-
-`refsResolve` covers the other invisible class: a REF / PAGEREF / `#anchor`
-pointing at a bookmark that no longer exists renders as plain text in Word
-("Error! Bookmark not defined." mid-sentence, a TOC entry that stops jumping)
-and satisfies every schema check on the way out. Pair it with `bookmarkProblems`
-(malformed bookmark ranges, duplicate ids) whenever the task creates or edits
-anchors.
-
-Types — counts (`sectionCount` / `paragraphCount` / `tableCount` / `imageCount`
-with `eq` / `ne` / `min` / `max`), presence (`contains` / `notContains` /
-`textMatches`, scoped `body` | `header` | `footer` | `all`), parts (`headerText` /
-`footerText` with `regex` / `equals` / `index`), fields (`hasField` / `noField`),
-bookmarks (`refsResolve` / `bookmarkProblems` / `bookmarkExists` /
-`bookmarkMissing` / `bookmarkCount` / `refCount`),
-setup (`pageSize` / `partExists`), styles (`styleExists` / `styleMissing` by
-`styleId` or `name`), metadata (`author` / `title`).
-
-Check styles by `name`, not `styleId`: a writer may serialize ids as opaque
-numbers (`2`, `10`, …) — this skill's own `apply` does — so the id is not a
-stable identity across runs.
-
-### The manifest is read by a person
-
-`verify --diff <baseline>` prints every structural difference the run
-introduced: sections, paragraph count, parts, header/footer text, fields,
-styles, samples of new body text. It exists to be read, deliberately:
-
-> Every line above is a change this run introduced. Anything here the user did
-> not ask for is a defect, not a feature.
-
-### The last check is not a program
-
-Before handover, restate the request as a checklist in the user's own terms and
-walk the artifact against it: every requested item present, and *nothing present
-that was not requested*. Self-added polish — a title in the footer, an extra
-cover line, a "helpful" section — is the most common way a technically perfect
-file still fails, and it is invisible to every automated check above. When the
-manifest shows something you cannot trace back to the user's words, delete it.
-
-## Cross-command invariants
-
-- Original file is never modified; every applying CLI writes a fresh copy + validates before keeping. Validation uses baseline-diff — only errors *introduced* by the run are fatal. See [`standardize.md §Validation behavior`](references/standardize.md#validation-behavior); `--allow-validation-warnings` override is documented in [`config-schema.md`](references/config-schema.md).
-- Section properties sparse-by-design: untouched unless declared via `pageSetup`. Details: [`config-schema.md`](references/config-schema.md#page-setup).
-- Paragraph indexing is 1-based, matching `#NNN` in skeleton. Layout-table paragraphs are indexed; data-table cell paragraphs aren't. Both are reachable by surgical edits — layout cells via global `#NNN` index, data cells via `cell` locator with optional `paragraph: K` / `to: M`. `RunLocator` accepts cell coords too for `set-run`. See [`references/edit.md` locator table](references/edit.md#locators-at).
-- All `edits[]` locators resolve against the **pre-edits** document state — `#NNN` from `overview` is what locators reference, regardless of intervening ops. Resolved Element refs survive subsequent mutations.
+- Original file is never modified; every applying CLI writes a fresh copy and validates before keeping it. Validation is baseline-diff — only errors *introduced* by the run are fatal ([standardize.md §Validation behavior](references/standardize.md#validation-behavior)).
+- Paragraph indexing is 1-based, matching `#NNN` in the skeleton. Layout-table paragraphs are indexed; data-table cells aren't — reach layout cells via global `#NNN`, data cells via a `cell` locator with optional `paragraph: K` / `to: M`. `RunLocator` takes cell coords too for `set-run` ([edit.md locator table](references/edit.md#locators-at)).
+- All `edits[]` locators resolve against the **pre-edits** document state — the `#NNN` from `overview` is what locators reference, regardless of intervening ops. Resolved Element refs survive subsequent mutations.
 - Paths resolve against CWD; use absolute paths if you may have changed directories.
-- Restyle: run-level direct formatting uniform across all runs gets stripped; per-run differences preserved as intentional inline emphasis.
-- Field codes (`STYLEREF` / `TOC` / `REF` / `DATE` / …) preserved as-is; not editable inside. TOC content is not regenerated — user must right-click → "Update Field" in Word.
-- Edit blockers: the edit phase refuses paragraphs inside existing tracked changes / complex fields / SDT controls. Run `inspect_blockers` first. **Ordering rule that follows from it: content controls (SDT) are inserted LAST** — run every `edits[]` op first, then add SDTs (`extend` / raw fragments). An SDT placed before the edit phase silently blocks every later edit that targets paragraphs inside it.
-- **A bookmark has to exist before anything names it.** Three ways to create one, and only these: a Block's `anchor` (paragraphs / equations / captions this same run emits), the `format` op's `anchor` (a paragraph that is already on disk — the only way to anchor pre-existing content), and `extend`'s `bookmark` op (any paragraph, plus a `from`/`to` range). Then wire the reference: `refTo` → REF field, `{ "link": "#name" }` → in-page jump, `extend field` → any instruction that takes a name (`PAGEREF`, `TOC \b name`). `display: "number"` additionally requires the target to be bound to a `numbering` level — plain body text needs `display: "full"`.
-- **`_Toc*` / `_Ref*` / `_GoBack` bookmarks are Word's, not yours.** Word writes them when it updates a field — the TOC field ships *empty* by design ([`toc_field`](references/extend.md)), and the 70 `_Toc*` bookmarks + PAGEREF + HYPERLINK triplets that make TOC entries clickable appear only after Word recomputes. Never cite or hand-edit them; they are regenerated on every update. Treat a `_Toc*` reference whose bookmark is gone as a real defect — `inspect_bookmarks` and the `refsResolve` assertion catch exactly that.
-- Style-name preflight: before any mutation, the engine catches `<w:name>` collisions (including en/zh-CN locale aliases) and aborts with a fix hint; `--dry-run` lists collisions as warnings instead.
-- `settings.elements` is order-safe and duplicate-safe: each entry is merged into an existing element of the same name when one exists, otherwise inserted at the XSD-correct position from the authoritative 98-child order. `updateFields`, `evenAndOddHeaders`, etc. never appear twice. Repeatable children work too — declaring the same child name more than once (e.g. three `docVar`s inside `docVars`, or several `rsid`s) appends one node per declaration instead of collapsing them into a single node.
-- `docProps/core.xml` + `app.xml` are created or refreshed automatically (`docProps.enabled`, default on): title / creator / revision, plus `Words` / `Characters` / `Paragraphs` counted the way Word counts Chinese (CJK per character, Latin per word). These parts are what `NUMPAGES` / `NUMWORDS` / `AUTHOR` fields read.
-- Root namespace declarations are repaired on every part written — `xmlns:w14` / `w15` / `wp14` / `wps` / `wpg` / `wpc` / `v` / `o` / `mc` as needed, with rendering prefixes (`wps` / `wpg` / `wpc`) explicitly kept **out** of `mc:Ignorable`. Template files that declare only `xmlns:w` + `xmlns:r` are the normal case, not the exception.
-- **Before delivering any file, run the PRO validator** — `python pro/scripts/validate.py out.docx` — not just the Node `validate.js`. The two check different layers (XSD + OPC graph vs. the Node schema pass) and the PRO run also reports paragraph / word counts and redlining completeness. Treat a non-zero exit as not-done. This is one half of the gate; the other half is `verify` — see [§ Delivery gate](#delivery-gate).
-- **Multi-step chains go through `pipeline`, not by hand.** Running `apply` and `extend` as separately-remembered commands is how a stale intermediate ships: regenerate the config *source* but forget to re-emit the config JSON, and the writer happily re-writes the previous config while every downstream validator reports PASS. Declare the chain once; the runner aborts on the first failure and validates the deliverable.
-- **Schema-valid is not delivery-ready.** A file can pass every validator and still be wrong — an unrequested footer title is well-formed XML. Assertions are the mechanical guard; reading the change manifest against the user's own words is the one no program can do for you.
-- **`mergeRuns` renumbers runs.** It is the only pre-pass that mutates the source DOM ahead of design decisions, so a `set-run` locator written against the fragment-laden original shifts under it. Reach for it *instead of* hand-addressing `runIndex` values, not alongside them. It is idempotent (an already-merged document merges 0 runs) and `--dry-run` reports it with the rest of the change report.
+- Field codes (`STYLEREF` / `TOC` / `REF` / `DATE` / …) are preserved as-is and are not editable inside. TOC content is not regenerated — the user must right-click → "Update Field" in Word.
+- Edit blockers: the edit phase refuses paragraphs inside existing tracked changes / complex fields / SDT controls — run `inspect_blockers` first. **Ordering rule that follows: SDTs are inserted LAST** — every `edits[]` op first, then `extend` / raw fragments. An SDT placed before the edit phase silently blocks every later edit targeting paragraphs inside it.
+- **A bookmark has to exist before anything names it.** Three doors create one — a Block's `anchor` (content this run emits; pre-scanned, so forward refs work), `format`'s `anchor` (a paragraph already on disk), `extend`'s `bookmark` op (any paragraph, or a `from`/`to` range). Wire it via `refTo` → REF, `{ "link": "#name" }` → in-page jump, `extend field` → `PAGEREF` / `TOC \b name`. `display: "number"` needs an auto-numbered target, else `"full"`. Table: [cross-references.md](references/cross-references.md#creating-an-anchor--the-three-doors).
+- `_Toc*` / `_Ref*` / `_GoBack` bookmarks are **Word's, not yours** — written when Word updates a field. The TOC field ships *empty* by design ([toc_field](references/extend.md)); the `_Toc*` + PAGEREF + HYPERLINK triplets behind clickable TOC entries appear only after Word recomputes. Never cite or hand-edit them. A `_Toc*` reference whose bookmark is gone IS a defect — `inspect_bookmarks` and `refsResolve` catch exactly that.
+- **Before delivering, run the PRO validator too** — `python pro/scripts/validate.py out.docx`, not just `validate.js`; the two check different layers (XSD + OPC graph vs. Node schema pass). Non-zero exit = not done. One half of the gate; `verify` is the other.
+- **Multi-step chains go through `pipeline`, not by hand.** Separately-remembered `apply` / `extend` commands are how a stale intermediate ships: regenerate the config *source* but forget to re-emit the JSON, and the writer re-writes the previous config while every validator reports PASS.
+- **`mergeRuns` renumbers runs** — the only pre-pass that mutates the source DOM ahead of design decisions, so a `set-run` locator written against the fragment-laden original shifts under it. Reach for it *instead of* hand-addressing `runIndex`, not alongside. Idempotent.
 
-Block-level config details: [`references/standardize.md`](references/standardize.md), [`references/edit.md`](references/edit.md), [`references/config-schema.md`](references/config-schema.md).
+Block-level config details: [standardize.md](references/standardize.md), [edit.md](references/edit.md), [config-schema.md](references/config-schema.md).
 
 ## Where things live
 
-- **Field semantics** (any apply config field — values, constraints, defaults) → [`references/config-schema.md`](references/config-schema.md)
-- **Locator + op contracts** (addressing, edit ops, block types) → [`references/edit.md`](references/edit.md)
-- **Workflow** (audit → standardize → edit pipeline, design decisions) → respective workflow refs (`audit.md`, `standardize.md`, `edit.md`)
-- **Domain knowledge** (Chinese counting patterns, caption pipeline, classifier reasons, table layouts) → concept refs (`numbering-formats.md`, `captions.md`, `tables.md`, `equations.md`, `cross-references.md`, `header-footer.md`, `chinese-font-sizes.md`)
-- **PRO toolchain** (comments / accept-changes / run merging / render verification) → [`references/pro-toolchain.md`](references/pro-toolchain.md)
-- **OOXML extension channel** (fields, notes, watermarks, shapes, charts, OLE, custom XML) → [`references/extend.md`](references/extend.md)
-- **Element order** (the XSD-mandated child sequence of any element — authoritative, auto-generated) → [`references/element-order.md`](references/element-order.md)
-- **Extension points** (root namespace declarations, `mc:Ignorable` rules, part registration, `docProps`) → [`references/ooxml-extension-points.md`](references/ooxml-extension-points.md)
-- **What changed** (capability additions, fixed defects, deliberate boundaries — newest first) → [`CHANGELOG.md`](CHANGELOG.md)
+- **Field semantics** → [config-schema.md](references/config-schema.md) · **Tool invocations / flags / truncation** → [tools.md](references/tools.md) · **Locator + op contracts** → [edit.md](references/edit.md)
+- **Workflows** (audit / standardize / edit) → [audit.md](references/audit.md), [standardize.md](references/standardize.md), [edit.md](references/edit.md)
+- **Delivery gate** (assertions / manifest / handover checklist) → [delivery-gate.md](references/delivery-gate.md) · **Engine auto-behavior** → [engine-behavior.md](references/engine-behavior.md)
+- **Domain knowledge** → [numbering-formats.md](references/numbering-formats.md), [captions.md](references/captions.md), [tables.md](references/tables.md), [equations.md](references/equations.md), [cross-references.md](references/cross-references.md), [header-footer.md](references/header-footer.md), [chinese-font-sizes.md](references/chinese-font-sizes.md)
+- **PRO toolchain** → [pro-toolchain.md](references/pro-toolchain.md) · **OOXML extension channel** → [extend.md](references/extend.md)
+- **Element order** → [element-order.md](references/element-order.md) · **Extension points** → [ooxml-extension-points.md](references/ooxml-extension-points.md) · **What changed** → [CHANGELOG.md](CHANGELOG.md)

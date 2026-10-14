@@ -21,6 +21,7 @@
 | **旧版 `.doc` 转换** | **PRO**（`pro/scripts/soffice.py --headless --convert-to docx file.doc`） | Node 引擎不认识二进制 `.doc` |
 | **XSD 校验 + 修订完整性核查（`--author`）** | **PRO**（`pro/scripts/validate.py --original`） | 修订漏包 `<w:ins>`/`<w:del>` 时能报出，Node 版不做此项 |
 | **渲染成图人工核对版式** | **PRO**（`soffice.py` + `pdftoppm`） | 视觉验证是最终把关手段 |
+| **查元素的 XSD 子元素顺序** | **PRO**（`pro/scripts/element_order.py`） | Node 引擎不提供顺序查询；`references/element-order.md` 是它的生成产物 |
 | 用 docx-js（npm `docx`）从零建文档 | **PRO**（`pro/zh-CN.md` 陷阱清单） | Node 引擎走手写 OOXML，无 docx-js 路径 |
 | 纯内容读取/抽取 | **Node 引擎**（`overview` / `inspect_range`） | 无需 pandoc |
 
@@ -127,6 +128,16 @@ ls page-*.jpg        # 页码按总页数补零：page-01.jpg … page-12.jpg，
 ### 4.6 docx-js 创建路径的陷阱
 
 建新文档时若走 `docx`（npm），必读 `pro/zh-CN.md` 的陷阱清单：页面尺寸默认 A4、表格需 table `columnWidths` + 每格 `width` 双设且用 `WidthType.DXA`、底纹用 `ShadingType.CLEAR`、列表用 `numbering`、`ImageRun` 必带 `type`、TOC 需内置 `HeadingLevel` 或设 `outlineLevel`、同行右对齐页码用 `PositionalTab`。
+
+### 4.7 查元素的 XSD 子元素顺序
+
+```bash
+python element_order.py --type CT_SectPr CT_PPr   # 查指定类型的子元素顺序
+python element_order.py --list                    # 列出全部已知类型
+python element_order.py --doc                     # 重新生成 references/element-order.md
+```
+
+`references/element-order.md` 就是 `--doc` 的产物（权威、自动生成），**手工改会被下一次重生成覆盖**。写原始片段前不确定某个元素该插在哪，先查它。
 
 ## 5. 边界与冲突
 

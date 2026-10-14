@@ -11,3 +11,4 @@ Thumbs.db
 
 # 本地运行产物
 out/
+tests/.out/

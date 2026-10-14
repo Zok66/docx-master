@@ -1,0 +1,17 @@
+{
+  "source": "scripts/_assets/blank.docx",
+  "output": "tests/.out/smoke-basic.docx",
+  "dryRun": true,
+  "styles": [
+    {
+      "id": "BodyText",
+      "name": "Body Text",
+      "fontCJK": "宋体",
+      "size": "12pt",
+      "firstLineIndent": "2char"
+    }
+  ],
+  "assignments": [
+    { "para": 1, "action": "restyle", "style": "BodyText" }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "basic-apply（最小 config 能通过 dry-run）",
+  "config": "tests/cases/basic-apply.config.json",
+  "expectExit": 0,
+  "why": "冒烟：apply 引擎在最小 config 上不报错。若失败，说明引擎或 config schema 出现了破坏性变更。"
+}
