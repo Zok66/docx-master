@@ -1,6 +1,6 @@
 ---
 name: docx-master
-description: "Standardize, edit, or audit a Word (.docx / .dotx) document via direct OOXML mutation. Core CLIs: `apply` (the unified writer — install styles + numbering + theme + template, restyle by pattern / fingerprint, insert content via edits, all in one config), `audit` (read-only conformance check, no file written), `extend` (JSON-driven post-processing for what the writer deliberately skips — TOC / table-of-figures / index fields, footnotes & endnotes, watermarks, page borders, shapes / text boxes / canvas / WordArt / SmartArt-equivalent diagrams, charts, OLE objects, glossary building blocks, cover pages, custom XML), plus `batch_fill` (one template + a CSV / JSON data table → one finished document per row — mail merge without Word). Common config shapes inside `apply`: standardize (role-based whole-doc reshape — paragraph classification, named styles, multi-level auto-numbering, template import), edit (location-based surgical changes — replace/insert/delete paragraphs, table cells, image embedding, optional tracked changes). Use whenever the user wants to format / restyle / normalize / edit / audit a Word document. Also covers adding comments (批注), accepting tracked changes, legacy `.doc` → `.docx` conversion, and rendering pages for visual verification through the vendored python toolchain under `pro/` (see references/pro-toolchain.md). Do NOT use for: PDFs, spreadsheets, or plain-text / Markdown source files (unless the task is specifically to *output* a docx)."
+description: "Standardize, edit, or audit a Word (.docx / .dotx) document via direct OOXML mutation. Core CLIs: `apply` (the unified writer — install styles + numbering + theme + template, restyle by pattern / fingerprint, insert content via edits, all in one config), `audit` (read-only conformance check, no file written), `extend` (JSON-driven post-processing for what the writer deliberately skips — TOC / table-of-figures / index fields, footnotes & endnotes, watermarks, page borders, shapes / text boxes / canvas / WordArt / SmartArt-equivalent diagrams, charts, OLE objects, glossary building blocks, cover pages, custom XML), plus `batch_fill` (one template + a CSV / JSON data table → one finished document per row — mail merge without Word), and the delivery layer: `pipeline` (declare a multi-step chain once; one command runs it, aborting on the first failure) + `verify` (declarative delivery assertions and a change manifest — catches the defects no schema validator can see) + `doctor` (environment capability probe). Common config shapes inside `apply`: standardize (role-based whole-doc reshape — paragraph classification, named styles, multi-level auto-numbering, template import), edit (location-based surgical changes — replace/insert/delete paragraphs, table cells, image embedding, optional tracked changes). Use whenever the user wants to format / restyle / normalize / edit / audit a Word document. Also covers adding comments (批注), accepting tracked changes, legacy `.doc` → `.docx` conversion, and rendering pages for visual verification through the vendored python toolchain under `pro/` (see references/pro-toolchain.md). Do NOT use for: PDFs, spreadsheets, or plain-text / Markdown source files (unless the task is specifically to *output* a docx)."
 ---
 
 # docx-master
@@ -45,6 +45,9 @@ A well-formed Word document expresses structure through **styles + numbering + s
 | **`apply`** | The unified writer. Install styles + numbering + theme + template, restyle by pattern / fingerprint, insert content via edits — single config, single call. | [standardize.md](references/standardize.md) + [edit.md](references/edit.md) |
 | `audit` | Read-only conformance check workflow. No CLI; uses the inspect tools to produce a violation report. | [audit.md](references/audit.md) |
 | **`extend`** | Post-processing for what the engine deliberately does not write: TOC / table-of-figures / index fields, footnotes & endnotes, VML watermarks, page borders & background, shapes / text boxes / canvas / WordArt / SmartArt-equivalent diagrams, charts, OLE objects, glossary (Building Blocks), cover pages, custom XML, anchored raw-fragment insertion. JSON-driven, Python + lxml. | [extend.md](references/extend.md) |
+| **`pipeline`** | One-command rebuild of a multi-step chain (config source → `apply` → `extend` → validate → verify). Aborts on the first failure; auto-validates the deliverable; `--plan` / `--emit-script` for environments that cannot spawn. | [§ Delivery gate](#delivery-gate) |
+| **`verify`** | The delivery gate itself: declarative assertions (exit 1 on failure) + change manifest vs. a baseline. | [§ Delivery gate](#delivery-gate) |
+| `doctor` | Environment capability probe. Run first on an unfamiliar machine. | [§ Delivery gate](#delivery-gate) |
 
 `apply` pipeline order:
 
@@ -131,6 +134,9 @@ All tools invoked via `node <script> <args>`, output to stdout.
 | `validate` | `node scripts/validate.js <file>` | Schema-aware OOXML check. `apply` runs this automatically; standalone for spot-checking arbitrary .docx files. |
 | `apply --dry-run` | `node scripts/apply.js --dry-run <config.json>` | Iterate on a config without writing. **Use between every config edit.** |
 | `apply` | `node scripts/apply.js <config.json>` | Unified writer. Default for any write task. |
+| `pipeline` | `node scripts/pipeline.js <build.json> [--plan] [--emit-script [out.sh]] [--dry-run] [--no-auto-validate] [--python <exe>]` | Runs a declared multi-step chain in order with one exit code, aborting on the first failure (`set -e` semantics when emitted as a script). Auto-appends schema validation when the manifest declares none. `--plan` prints the chain; `--emit-script` writes it as a bash script — the fallback when child processes are unavailable. |
+| `verify` | `node scripts/verify.js <verify.json \| file.docx> [--diff <baseline.docx>] [--json] [--quiet]` | The delivery gate: runs declarative assertions (non-zero exit on any failure) and, with a baseline, prints the change manifest. Zero-dependency; reads the OPC package directly. |
+| `doctor` | `node scripts/doctor.js [--json] [--python <exe>]` | Reports which capabilities are actually available (Node engine, subprocess spawning, Python+lxml, LibreOffice, pdftoppm, pandoc, npm docx) and what each missing one disables. Always exits 0 — it is a report, not a gate. |
 
 **`batch_fill` semantics.** Placeholders are matched against the **merged** layout, not the file's run fragmentation: runs are merged once across every participating part, then a placeholder still spanning a run boundary is stitched (a boundary only survives merging when the two runs differ in `rPr`). The value lands in the run that carried the placeholder's **first** character, so that run's `rPr` decides how the inserted text looks; the runs it spanned are emptied, never deleted, so bookmarks / fields / comment anchors around them keep their positions. A placeholder with no matching column is left exactly as written (`--strict` makes that fatal instead); `{{field|fallback}}` supplies replacement text. The template itself is never modified — every row produces a fresh copy. Pass `--validate` (or run `validate.js` afterwards) before delivering a batch.
 
@@ -153,6 +159,77 @@ Dependency state on this machine: `defusedxml` + `lxml` installed in `envs/defau
 
 Routing rules, boundary conflicts, and the full workflows: [`references/pro-toolchain.md`](references/pro-toolchain.md).
 
+## Delivery gate
+
+Schema validation (`validate`, PRO `validate.py`) answers one question: *is this
+file well-formed?* It cannot answer the other one: *is this what the user asked
+for?* A footer carrying a title nobody requested validates perfectly. Both
+questions get answered before handover, so delivery is a gate, not a final
+`validate` call:
+
+| # | Step | Command | Fails when |
+|---|---|---|---|
+| 1 | Probe the environment | `node scripts/doctor.js` | never — it reports which optional paths (render / soffice / pandoc) are live, so you learn at minute one instead of step nine |
+| 2 | Dry-run each config edit | `node scripts/apply.js --dry-run <cfg>` | the config is invalid |
+| 3 | Run the whole chain | `node scripts/pipeline.js build.json` | any step fails — the chain aborts and later steps never run |
+| 4 | Assert the artifact | `node scripts/verify.js verify.json` | any assertion fails |
+| 5 | Read the change manifest | `node scripts/verify.js <out.docx> --diff <src.docx>` | never — but every line must be defensible against the user's words |
+
+Steps 3 and 4 wire together: declare `"verify"` in the pipeline manifest and a
+failed assertion fails the build. A build may not finish unvalidated — if no
+`validate` step is declared, the pipeline appends one for the deliverable.
+
+**When the environment forbids child processes** (sandboxed agents), step 3
+becomes `--plan` (print the resolved chain) or `--emit-script` (write a `set -e`
+bash script); `bash <script>` gives the same abort-on-first-failure contract in
+one command, and a non-zero exit from it *is* the build result. `doctor` reports
+this capability explicitly — checked before you plan a long task, not during one.
+
+### Assertions encode intent
+
+Write assertions before the config: they are the user's requirements stated
+mechanically. Their whole purpose is the defect class no schema check can see:
+
+```json
+{ "type": "notContains", "text": "My Book", "scope": "footer" },
+{ "type": "footerText", "regex": "^\\s*第\\s*<PAGE>\\s*页\\s*\\/\\s*共\\s*<NUMPAGES>\\s*页\\s*$" },
+{ "type": "hasField", "field": "TOC", "scope": "body" }
+```
+
+The first line exists because a footer carrying an unrequested title is
+perfectly well-formed XML that passes every validator. `<PAGE>` is the field
+marker: cached field *results* are ignored, so assertions survive repagination
+and don't depend on what Word last computed.
+
+Types — counts (`sectionCount` / `paragraphCount` / `tableCount` / `imageCount`
+with `eq` / `ne` / `min` / `max`), presence (`contains` / `notContains` /
+`textMatches`, scoped `body` | `header` | `footer` | `all`), parts (`headerText` /
+`footerText` with `regex` / `equals` / `index`), fields (`hasField` / `noField`),
+setup (`pageSize` / `partExists`), styles (`styleExists` / `styleMissing` by
+`styleId` or `name`), metadata (`author` / `title`).
+
+Check styles by `name`, not `styleId`: a writer may serialize ids as opaque
+numbers (`2`, `10`, …) — this skill's own `apply` does — so the id is not a
+stable identity across runs.
+
+### The manifest is read by a person
+
+`verify --diff <baseline>` prints every structural difference the run
+introduced: sections, paragraph count, parts, header/footer text, fields,
+styles, samples of new body text. It exists to be read, deliberately:
+
+> Every line above is a change this run introduced. Anything here the user did
+> not ask for is a defect, not a feature.
+
+### The last check is not a program
+
+Before handover, restate the request as a checklist in the user's own terms and
+walk the artifact against it: every requested item present, and *nothing present
+that was not requested*. Self-added polish — a title in the footer, an extra
+cover line, a "helpful" section — is the most common way a technically perfect
+file still fails, and it is invisible to every automated check above. When the
+manifest shows something you cannot trace back to the user's words, delete it.
+
 ## Cross-command invariants
 
 - Original file is never modified; every applying CLI writes a fresh copy + validates before keeping. Validation uses baseline-diff — only errors *introduced* by the run are fatal. See [`standardize.md §Validation behavior`](references/standardize.md#validation-behavior); `--allow-validation-warnings` override is documented in [`config-schema.md`](references/config-schema.md).
@@ -167,7 +244,9 @@ Routing rules, boundary conflicts, and the full workflows: [`references/pro-tool
 - `settings.elements` is order-safe and duplicate-safe: each entry is merged into an existing element of the same name when one exists, otherwise inserted at the XSD-correct position from the authoritative 98-child order. `updateFields`, `evenAndOddHeaders`, etc. never appear twice. Repeatable children work too — declaring the same child name more than once (e.g. three `docVar`s inside `docVars`, or several `rsid`s) appends one node per declaration instead of collapsing them into a single node.
 - `docProps/core.xml` + `app.xml` are created or refreshed automatically (`docProps.enabled`, default on): title / creator / revision, plus `Words` / `Characters` / `Paragraphs` counted the way Word counts Chinese (CJK per character, Latin per word). These parts are what `NUMPAGES` / `NUMWORDS` / `AUTHOR` fields read.
 - Root namespace declarations are repaired on every part written — `xmlns:w14` / `w15` / `wp14` / `wps` / `wpg` / `wpc` / `v` / `o` / `mc` as needed, with rendering prefixes (`wps` / `wpg` / `wpc`) explicitly kept **out** of `mc:Ignorable`. Template files that declare only `xmlns:w` + `xmlns:r` are the normal case, not the exception.
-- **Before delivering any file, run the PRO validator** — `python pro/scripts/validate.py out.docx` — not just the Node `validate.js`. The two check different layers (XSD + OPC graph vs. the Node schema pass) and the PRO run also reports paragraph / word counts and redlining completeness. Treat a non-zero exit as not-done.
+- **Before delivering any file, run the PRO validator** — `python pro/scripts/validate.py out.docx` — not just the Node `validate.js`. The two check different layers (XSD + OPC graph vs. the Node schema pass) and the PRO run also reports paragraph / word counts and redlining completeness. Treat a non-zero exit as not-done. This is one half of the gate; the other half is `verify` — see [§ Delivery gate](#delivery-gate).
+- **Multi-step chains go through `pipeline`, not by hand.** Running `apply` and `extend` as separately-remembered commands is how a stale intermediate ships: regenerate the config *source* but forget to re-emit the config JSON, and the writer happily re-writes the previous config while every downstream validator reports PASS. Declare the chain once; the runner aborts on the first failure and validates the deliverable.
+- **Schema-valid is not delivery-ready.** A file can pass every validator and still be wrong — an unrequested footer title is well-formed XML. Assertions are the mechanical guard; reading the change manifest against the user's own words is the one no program can do for you.
 - **`mergeRuns` renumbers runs.** It is the only pre-pass that mutates the source DOM ahead of design decisions, so a `set-run` locator written against the fragment-laden original shifts under it. Reach for it *instead of* hand-addressing `runIndex` values, not alongside them. It is idempotent (an already-merged document merges 0 runs) and `--dry-run` reports it with the rest of the change report.
 
 Block-level config details: [`references/standardize.md`](references/standardize.md), [`references/edit.md`](references/edit.md), [`references/config-schema.md`](references/config-schema.md).

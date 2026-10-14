@@ -17,8 +17,10 @@
 | **编辑** | 定位式外科手术：替换 / 插入 / 删除段落、表格单元格、嵌入图片，可选生成修订痕迹 |
 | **扩展** | `extend` 补引擎"故意不写"的部分：目录 / 图表目录 / 索引域、脚注尾注、水印、页面边框与背景、形状 / 文本框 / 画布 / 艺术字、图表、OLE、构建基块、封面、自定义 XML、内容控件 |
 | **批量** | 一份模板 + 一张 CSV / JSON 数据表 → 每行一份成品（Word 邮件合并的替代品） |
+| **编排** | `pipeline`：把「生成配置 → apply → extend → 校验 → 断言」声明成一条链路，**一条命令跑完**，任一步失败立即中止——不留"跑了前半段"的半成品。无子进程环境（沙盒）可 `--emit-script` 生成 `set -e` 脚本，`bash` 一次执行得到同样的中止语义 |
 | **读取** | 结构侦察：样式定义与继承链、编号方案与消耗数、节与页面设置、主题、题注、表格、文档骨架、任意范围的段落全文与计算样式、逐 run 格式 |
-| **校验** | 双校验器：Node 侧 schema 检查 + XSD / OPC 包图检查，写盘前自动跑 |
+| **校验** | 三层：Node schema 检查 + XSD / OPC 包图检查（写盘前自动跑），外加 `doctor` 的环境能力探测 |
+| **交付门** | `verify`：① 声明式断言（如"页脚不得出现书名"）失败即非零退出、**阻断交付**；② 变更清单（产出 vs 基线）逐项列出本次引入的改动，供对着用户原话核对 |
 | **批注 / 修订** | 添加批注（含回复）、接受全部修订生成干净副本 |
 | **转换** | 旧版二进制 `.doc` → `.docx`（需 LibreOffice），渲染成图做视觉复核 |
 
@@ -35,22 +37,43 @@ git clone https://github.com/Zok66/docx-master.git ~/.workbuddy/skills/docx-mast
 ```bash
 SK=~/.workbuddy/skills/docx-master
 
+# 0) 开工前：探测环境能力（哪些可选项真的可用、哪些会降级）
+node $SK/scripts/doctor.js
+
 # 1) 先侦察：结构、样式、编号、骨架
 node $SK/scripts/overview.js 我的文档.docx
 
-# 2) 设计一份 config，干跑不落盘
+# 2) 单步设计：一份 config，先干跑不落盘，再落盘（输出新文件，原文件不动）
 node $SK/scripts/apply.js --dry-run my.config.json
-
-# 3) 落盘（输出的是新文件，原文件不动）
 node $SK/scripts/apply.js my.config.json
+python $SK/scripts/extend/extend.py extend.config.json   # 目录 / 水印 / 脚注 / 图表 …
 
-# 4) 补扩展能力（目录 / 水印 / 脚注 / 图表 …）
-python $SK/scripts/extend/extend.py extend.config.json
+# 3) 或者：把上面几步声明成一条链路，一条命令跑完（推荐）
+node $SK/scripts/pipeline.js build.json          # 任一步失败即中止，末尾自动双校验
+node $SK/scripts/pipeline.js build.json --plan   # 只看将要执行什么，不落盘
 
-# 5) 交付前双校验
-node $SK/scripts/validate.js out.docx
-python $SK/pro/scripts/validate.py out.docx
+# 4) 交付门：断言 + 变更清单
+node $SK/scripts/verify.js verify.json                     # 断言失败 → exit 1，交付阻断
+node $SK/scripts/verify.js out.docx --diff 源文档.docx      # 列出本次改了什么，逐条核对
 ```
+
+断言长这样（`verify.json`）——它是用机器表达的"用户要求"：
+
+```json
+{
+  "file": "out.docx",
+  "baseline": "源文档.docx",
+  "assert": [
+    { "type": "sectionCount", "eq": 3 },
+    { "type": "hasField", "field": "TOC", "scope": "body" },
+    { "type": "headerText", "regex": "佐罗斯" },
+    { "type": "notContains", "text": "我的书名", "scope": "footer" },
+    { "type": "footerText", "regex": "^\\s*第\\s*<PAGE>\\s*页\\s*\\/\\s*共\\s*<NUMPAGES>\\s*页\\s*$" }
+  ]
+}
+```
+
+最后两条正是为了抓「页脚混进书名」这类**格式完全合规、但用户没要求**的改动——任何 schema 校验器都看不见它。
 
 批量套打：
 
@@ -64,6 +87,8 @@ node $SK/scripts/batch_fill.js 合同模板.docx 客户.csv \
 - **原文件永不被修改。** 每个写盘命令产出新副本，原文件保持原样。
 - **稀疏声明。** 只声明坏掉的、缺失的、或用户明确要改的部分；没碰的样式 / 编号 / 段落原样保留。
 - **先校验再交付。** 两个校验器检查不同层（Node schema 层 vs XSD + OPC 包图层），都要过。
+- **多步链路必须由机器串起来。** 靠人记着"改完内容源要重跑配置生成"是最容易翻车的地方：源头没重跑，写入器会拿着**上一版配置**写出文件，而后面每一道校验都报 PASS。链路声明一次，跑一次。
+- **"格式合规"不等于"可以交付"。** 用户没要求的改动（页脚多一行书名、多加一行署名）是合规的 XML，也是缺陷。断言管机械那一半，读变更清单管剩下那一半。
 - **内容与结构分离。** 标题 / 列表 / 题注这类"结构信号"由样式、编号、SEQ 域渲染，不写死在文本里。
 
 ## 目录结构
@@ -76,6 +101,9 @@ docx-master/
 ├── scripts/              # 主链路：零依赖 Node + Python lxml
 │   ├── apply.js          # 统一写入器（样式 / 编号 / 主题 / 模板 / 编辑）
 │   ├── batch_fill.js     # 模板 × 数据表 → N 份文档
+│   ├── pipeline.js       # 单入口编排：一条命令跑完整条链路，失败即停
+│   ├── verify.js         # 交付门：声明式断言 + 变更清单（零依赖直读 OPC）
+│   ├── doctor.js         # 环境能力探测（子进程 / Python / 渲染工具链）
 │   ├── merge_runs.js     # 合并碎片化 run（外部文档编辑前预处理）
 │   ├── validate.js       # schema 校验
 │   ├── overview.js       # 与 11 个 inspect_* 侦察工具

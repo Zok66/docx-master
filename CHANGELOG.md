@@ -5,6 +5,68 @@
 
 ---
 
+## 2026-10-13（第六轮）—— 新增交付层：`pipeline` 编排 + `verify` 交付门 + `doctor` 探测
+
+缘起是一次真实的翻车。给一份 Word 笔记补页脚时，我把书名一起写进了页脚（用户只要求"页脚只保留页码"），
+而 **Node `validate.js` 与 PRO `validate.py` 全部 PASS** —— 因为 XML 完全合规。同一轮还有第二处失误：
+改了配置源 `build_config.js` 却只重跑 `apply` + `extend`，没重跑配置生成步骤，于是写入器拿着**上一版
+config.json** 写出了文件，后面每一道校验照样 PASS。
+
+两个缺陷指向同一处空白：现有校验全在**形式层**（schema / XSD / 结构完整性），没有一层在**意图层**
+（产出是否忠于用户原话、链路是否真的跑完整）。本轮补上这一层。
+
+### 新增能力
+
+- **`node scripts/pipeline.js <build.json>` —— 单入口链路编排。**
+  步骤类型 `run` / `apply` / `extend` / `validate` / `proValidate`；按声明顺序执行，**首个失败立即中止**
+  （没有"继续执行"模式）；未声明 `validate` 步骤时**自动为交付物补上双校验**，构建不可能"悄悄"以未校验状态收尾；
+  声明 `verify` 后断言失败即构建失败。`--plan` 只打印解析后的命令链；`--dry-run` 时 apply / extend 走各自干跑。
+  解释器自动探测：优先选**能 `import lxml, defusedxml`** 的 python（裸 `python` 可能指向无依赖的解释器，实测踩到）。
+- **`--emit-script` —— 无子进程环境的等价方案。**
+  部分沙盒禁止进程创建（`spawnSync` 一律 `EBUSY`），此时 pipeline 自动降级：生成 `set -e` 的 bash 脚本并
+  以退出码 3 返回。`bash <script>` 一条命令跑完整条链，**中止语义与直接执行完全相同**；脚本内 Windows 路径
+  已转正斜杠以适配 Git Bash。
+- **`node scripts/verify.js <verify.json>` —— 交付门。**
+  ① **断言引擎**：counts（`sectionCount` / `paragraphCount` / `tableCount` / `imageCount`，支持 `eq`/`ne`/`min`/`max`）、
+  presence（`contains` / `notContains` / `textMatches`，作用域 `body`|`header`|`footer`|`all`）、parts（`headerText` / `footerText`）、
+  fields（`hasField` / `noField`）、setup（`pageSize` / `partExists`）、styles（`styleExists` / `styleMissing`）、
+  metadata（`author` / `title`）。任一失败 → **exit 1，交付阻断**。
+  ② **变更清单**（`--diff <baseline>`）：输出与基线的结构化差异（节数 / 段落数 / 部件 / 页眉页脚文本 / 域 / 样式 / 新增段落样本），
+  供逐条对照用户原话核对。
+  零依赖实现：自写 ZIP 读取（EOCD + 中央目录 + `inflateRaw`）与 XML 文本提取，直读 OPC 包，不引入任何第三方包。
+- **`node scripts/doctor.js` —— 环境能力探测。**
+  报告 Node 引擎、**子进程创建能力**、Python+lxml、LibreOffice、pdftoppm、pandoc、npm docx 的可用性，
+  并说明每个缺失项会让哪条路径降级。恒退出 0（是报告，不是门）。
+
+### 关键实现决策（均为实测踩坑后确定）
+
+- **域结果不计入文本。** `<w:instrText>` 与 `separate`…`end` 之间的文本是**缓存值**（PAGE 背后的 `1`、TOC 背后的目录条目）。
+  文本提取按 fldChar 状态机跳过它，把域渲染为 `<PAGE>` 占位符——于是断言可写成
+  `^\s*第\s*<PAGE>\s*页\s*\/\s*共\s*<NUMPAGES>\s*页\s*$`：既不依赖上次分页结果，也能一眼看出多出来的书名。
+- **样式按 `name` 比较，不按 `styleId`。** 写入器会把 styleId 序列化成不透明数字（`2`、`10`…，本技能的 `apply` 即如此），
+  拿它做差集会让每次重建都报"全部样式增删"——纯噪音，违背"报告要能读"的初衷。
+- **`headerText` / `footerText` 默认"任一部件匹配即通过"。** 一份文档可能持有多个部件（封面空部件、分节覆盖），
+  而意图是"页脚显示页码"；只有显式给 `index` 才收紧到某个具体部件。
+
+### 回归验证
+
+把已知真实缺陷重新注入产出物（在页脚加回书名），跑同一套断言：
+
+| 断言 | 结果 |
+|---|---|
+| `notContains "Linux 基础命令笔记" [footer]` | **FAIL** —— 该断言存在的唯一理由被验证 |
+| `footerText` 精确匹配 | **FAIL**，并打印实际值 `"Linux 基础命令笔记　|　第 <PAGE> 页 / 共 <NUMPAGES> 页"` |
+| 退出码 | **1**（交付阻断） |
+
+同一缺陷在 Node `validate.js` + PRO `validate.py` 下**全部 PASS**。
+
+端到端：`bash pipeline-run.sh` 一条命令跑完 6 步（生成配置 → apply → extend → 双校验 → 12 条断言），退出码 0。
+
+改动位置：`scripts/pipeline.js`、`scripts/verify.js`、`scripts/doctor.js`（新增）；
+`SKILL.md`（新增 § Delivery gate，Commands 表 / Tool Reference 表 / Cross-command invariants / frontmatter description 同步）；`README.md`。
+
+---
+
 ## 2026-10-10（第五轮）—— 修正「脚注 / 尾注」的边界表述矛盾
 
 `SKILL.md` 把 `footnotes` 列进 Out of scope，与 `extend` 的实际能力冲突。实测
