@@ -6883,6 +6883,86 @@ function inheritFormatForNewParagraphs(newEls, newBlocks, anchor, ownerDoc) {
 		}
 	}
 }
+/** Comment anchors carried directly by a paragraph: `<w:commentRangeStart>` /
+* `<w:commentRangeEnd>` as children, plus the run that holds
+* `<w:commentReference>`. Replies nest the same way, so a paragraph can carry
+* several ids. */
+function commentAnchorsIn(p) {
+	const out = [];
+	for (const el of Array.from(getChildren(p))) {
+		if (el.namespaceURI !== w$7) continue;
+		if (el.localName === "commentRangeStart" || el.localName === "commentRangeEnd") {
+			out.push({ node: el, id: readWId(el), head: el.localName === "commentRangeStart" });
+			continue;
+		}
+		if (el.localName === "r") {
+			for (const c of Array.from(getChildren(el))) {
+				if (c.namespaceURI === w$7 && c.localName === "commentReference") {
+					out.push({ node: el, id: readWId(c), head: false });
+					break;
+				}
+			}
+		}
+	}
+	return out;
+}
+/** Nearest `<w:p>` sibling — the landing spot for anchors whose paragraph is
+* going away. Prefers the one before, matching Word's own behaviour when a
+* commented paragraph is deleted. */
+function nearestParagraphSibling(p) {
+	for (let n = p.previousSibling; n; n = n.previousSibling) {
+		if (n.nodeType === 1 && n.namespaceURI === w$7 && n.localName === "p") return n;
+	}
+	for (let n = p.nextSibling; n; n = n.nextSibling) {
+		if (n.nodeType === 1 && n.namespaceURI === w$7 && n.localName === "p") return n;
+	}
+	return null;
+}
+/**
+ * P1-13 — keep comment anchors alive when their paragraph is replaced or
+ * deleted.
+ *
+ * The old behaviour: `replace` / `delete` removed the paragraph together with
+ * its `w:commentRangeStart` / `w:commentRangeEnd` / `w:commentReference`
+ * markers, while `word/comments.xml` still held the comment text. The result
+ * was an orphan comment — present in the file, invisible in Word's review
+ * pane, and flagged by neither validator.
+ *
+ * Anchors are re-attached to the surviving paragraph: range starts go to the
+ * top (right after `pPr`), ends and references to the bottom, so start→end
+ * order holds. When the landing paragraph is a neighbour rather than the
+ * replacement (`atEnd`), everything goes to the end — the comment then
+ * anchors to the paragraph boundary instead of spanning unrelated text.
+ *
+ * Returns the number of distinct comment ids carried over.
+ */
+function migrateCommentAnchors(fromParas, toPara, atEnd = false) {
+	if (!toPara) return 0;
+	const ids = new Set();
+	const heads = [];
+	const tails = [];
+	for (const p of fromParas) {
+		for (const { node, id, head } of commentAnchorsIn(p)) {
+			if (id) ids.add(id);
+			if (head && !atEnd) heads.push(node);
+			else tails.push(node);
+		}
+	}
+	if (heads.length === 0 && tails.length === 0) return 0;
+	const pPr = firstChildNS(toPara, w$7, "pPr");
+	let cursor = pPr;
+	for (const el of heads) {
+		if (el.parentNode) el.parentNode.removeChild(el);
+		if (cursor && cursor.parentNode === toPara) toPara.insertBefore(el, cursor.nextSibling);
+		else toPara.insertBefore(el, toPara.firstChild);
+		cursor = el;
+	}
+	for (const el of tails) {
+		if (el.parentNode) el.parentNode.removeChild(el);
+		toPara.appendChild(el);
+	}
+	return ids.size;
+}
 function applyDelete(target, documentDoc, trackContext, stale) {
 	if (target.paragraphs.length === 0) return 0;
 	const touchedParents = /* @__PURE__ */ new Set();
@@ -6893,6 +6973,11 @@ function applyDelete(target, documentDoc, trackContext, stale) {
 		const parent = p.parentNode;
 		if (parent) {
 			touchedParents.add(parent);
+			// P1-13: a deleted paragraph used to take its comment anchors with
+			// it, leaving the comment text stranded in comments.xml. Park the
+			// anchors on the nearest surviving paragraph instead.
+			const carried = migrateCommentAnchors([p], nearestParagraphSibling(p), true);
+			if (carried > 0) console.error(`[apply] warning: delete — ${carried} comment anchor(s) moved to the neighbouring paragraph; the comment survives, its original range does not.`);
 			parent.removeChild(p);
 		}
 		stale.add(p);
@@ -6986,6 +7071,24 @@ function applyReplace(target, fragment, documentDoc, trackContext, emitCtx, stal
 		for (const el of newEls) markParagraphAsInserted(el, documentDoc, trackContext);
 		for (const el of newEls) parent.insertBefore(el, anchor);
 	} else {
+		// P1-13: carry comment anchors onto the replacement so a commented
+		// paragraph can be rewritten without silently orphaning its comments.
+		const anchorCount = target.paragraphs.reduce((n, p) => n + commentAnchorsIn(p).length, 0);
+		if (anchorCount > 0) {
+			let survive = newEls.length > 0 ? newEls[newEls.length - 1] : null;
+			let atEnd = false;
+			if (!survive) {
+				survive = nearestParagraphSibling(anchor);
+				atEnd = true;
+			}
+			if (!survive) {
+				throw new Error(
+					`replace: ${anchorCount} comment anchor(s) would be orphaned — the replacement is empty and there is no neighbouring paragraph to carry them. Add at least one paragraph to the replacement, or resolve the comments in Word first.`
+				);
+			}
+			const carried = migrateCommentAnchors(target.paragraphs, survive, atEnd);
+			if (carried > 0) console.error(`[apply] warning: replace — ${carried} comment anchor(s) moved to the ${atEnd ? "neighbouring" : "replacement"} paragraph; the comment survives, its original range does not.`);
+		}
 		for (const el of newEls) parent.insertBefore(el, anchor);
 		for (const p of target.paragraphs) {
 			parent.removeChild(p);

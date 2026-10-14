@@ -260,11 +260,37 @@ function analyze(file) {
 	// bookmark and vice versa.
 	const bookmarkScan = analyzeParts(referenceBearingParts(zip));
 
+	// Comments. `word/comments.xml` defines the comment text; `document.xml`
+	// carries the anchors (commentRangeStart / commentRangeEnd /
+	// commentReference). A comment defined but not anchored is an orphan: it
+	// exists in the file, Word's review pane shows nothing, and no other
+	// check notices — exactly the shape of the P1-13 defect. Anchors are
+	// scanned across body + headers + footers, since a comment can live in a
+	// header too.
+	const commentsXml = zip.readText("word/comments.xml") || "";
+	const commentScan = (() => {
+		const ids = (xml, tag) => [...xml.matchAll(new RegExp(`<w:${tag}\\b[^>]*\\bw:id="([^"]*)"`, "g"))].map((m) => m[1]);
+		const defined = new Set(ids(commentsXml, "comment"));
+		const anchored = new Set();
+		const referenced = new Set();
+		const parts = [bodyXml, ...headers.map((h) => h.xml), ...footers.map((f) => f.xml)];
+		for (const xml of parts) {
+			for (const id of ids(xml, "commentRangeStart")) anchored.add(id);
+			for (const id of ids(xml, "commentRangeEnd")) anchored.add(id);
+			for (const id of ids(xml, "commentReference")) referenced.add(id);
+		}
+		const orphans = [...defined].filter((id) => !anchored.has(id) || !referenced.has(id));
+		const danglingRefs = [...referenced].filter((id) => !defined.has(id));
+		const openRanges = [...anchored].filter((id) => !defined.has(id));
+		return { defined, anchored, referenced, orphans, danglingRefs, openRanges, count: defined.size };
+	})();
+
 	return {
 		file,
 		zip,
 		parts: { body: bodyXml, headers, footers },
 		bookmarkScan,
+		commentScan,
 		sectionCount: sectPrs.length,
 		paragraphCount: paragraphs.length,
 		paragraphTexts: paragraphs.map(textOf),
@@ -351,6 +377,16 @@ function evalAssertion(a, spec) {
 			case "styleExists":
 			case "styleMissing":
 				return `${t} ${spec.styleId || spec.name}`;
+			case "commentCount": {
+				const bits = [];
+				if (spec.eq !== undefined) bits.push(`= ${spec.eq}`);
+				if (spec.ne !== undefined) bits.push(`≠ ${spec.ne}`);
+				if (spec.min !== undefined) bits.push(`≥ ${spec.min}`);
+				if (spec.max !== undefined) bits.push(`≤ ${spec.max}`);
+				return `${t} ${bits.join(" and ") || "(no constraint)"}`;
+			}
+			case "commentsIntact":
+				return `commentsIntact ${spec.eq !== undefined ? `= ${spec.eq}` : "= 0 orphans; every comment anchored"}`;
 			case "partExists":
 				return `partExists ${spec.name}`;
 			case "pageSize":
@@ -458,6 +494,26 @@ function evalAssertion(a, spec) {
 			const actual = t === "bookmarkCount" ? a.bookmarkScan.bookmarks.length : a.bookmarkScan.refs.length;
 			const r = countCmp(actual, spec);
 			return { label: label(), pass: r.pass, detail: `actual ${actual}, expected ${r.want}` };
+		}
+		case "commentCount": {
+			const actual = a.commentScan.count;
+			const r = countCmp(actual, spec);
+			return { label: label(), pass: r.pass, detail: `actual ${actual}, expected ${r.want}` };
+		}
+		case "commentsIntact": {
+			// The assertion that would have caught P1-13: every comment defined
+			// in comments.xml must be both ranged and referenced in the body.
+			const { orphans, danglingRefs, openRanges, count } = a.commentScan;
+			const pass = orphans.length === 0 && danglingRefs.length === 0 && openRanges.length === 0;
+			const bits = [];
+			if (orphans.length) bits.push(`${orphans.length} orphan comment(s) [${orphans.slice(0, 6).join(", ")}] — defined in comments.xml but never anchored`);
+			if (danglingRefs.length) bits.push(`${danglingRefs.length} reference(s) to undefined comment(s) [${danglingRefs.slice(0, 6).join(", ")}]`);
+			if (openRanges.length) bits.push(`${openRanges.length} anchor(s) with no comment body [${openRanges.slice(0, 6).join(", ")}]`);
+			return {
+				label: label(),
+				pass,
+				detail: pass ? `${count} comment(s), all anchored and referenced` : bits.join("; ")
+			};
 		}
 		case "bookmarkExists":
 		case "bookmarkMissing": {

@@ -53,6 +53,54 @@ Node `validate.js` PASS，PRO `validate.py`（XSD + OPC）PASS。
 
 ---
 
+## 2026-10-14（第十四轮）—— 缺陷修复：批注锚点丢失 / extend 自闭合 `<w:t/>` / 批注断言缺位
+
+对照第十三轮的效果文档回跑主交付链时暴露出的三个缺陷。
+
+### 🔴 P1-13 `replace` / `delete` 静默丢弃批注锚点
+
+- **现象**：对含批注的段落做 `replace` 或 `delete`，正文变了但 `commentRangeStart` /
+  `commentRangeEnd` / `commentReference` 三个锚点随被删段落一起消失 → `word/comments.xml`
+  里留下**永不显示的孤儿批注**。实测修复前 `start/end/ref = 3/3/3`，`comments.xml` 定义 4 条 → 孤儿 `[1]`。
+- **修复**：新增 `commentAnchorsIn()` / `nearestParagraphSibling()` / `migrateCommentAnchors()`。
+  删除或替换前先把锚点**搬到相邻段落**（先找 previous，无则 next）：
+  `commentRangeStart` 插到目标段 `pPr` 之后（保持 start→end 的先后次序），
+  `commentRangeEnd` + 含 `commentReference` 的 run 追加到段末。
+  当落地段是「邻居」而非替换段时（替换内容为空），全部锚点按段落边界追加（`atEnd = true`）。
+- **兜底**：若无任何可搬迁的邻居段落，`replace` 直接抛错而不是继续丢锚点。
+- **可观测**：迁移发生时 stderr 打 `[apply] warning: replace — N comment anchor(s) moved ...`。
+- **实测**：`replace` 与 `delete` 两条路径均回到 `start/end/ref = 4/4/4`、孤儿 `[]`。
+
+### 🔴 P1-14 `extend` 序列化未展开自闭合 `<w:t/>`
+
+- **现象**：Python 通道写出的 part 里残留 `<w:t/>` / `<w:t xml:space="preserve"/>`。
+  这类空文本节点在 `verify.js` 的行式 token 正则里会**整段吞掉**，导致断言假阴；
+  下游按 token 定位的工具也会错位。实测 `build/stage2-extended.docx` 里 12 处。
+- **修复**：`_common.py` 新增 `expand_self_closed_text()`，在 `DocxPackage.save()` 的**包边界**
+  统一跑一遍——覆盖所有 op 写入，并连带覆盖后续新造的 part。
+  快速检测（`b"<w:t/" in data`）会漏掉带属性的形态，改为**无条件跑正则**。
+- **实测**：`stage2-extended.docx` 自闭合 `<w:t/>` 12 → 0；主文档规范化阶段同样从 12 → 0。
+
+### 🔴 P3-19 `verify` 没有批注断言
+
+- **现象**：批注部件存在性有断言（`partExists`），但「有没有孤儿批注」「锚点全不全」无断言，
+  P1-13 这类缺陷在交付门上是**看不见的**。
+- **修复**：`verify.js` 新增批注扫描与两种断言：
+  - `{ "type": "commentCount", "eq": 4 }` — `comments.xml` 里 `w:comment` 的定义数
+  - `{ "type": "commentsIntact" }` — 每条批注都必须**同时**被锚定（`commentRangeStart`）
+    且被引用（`commentReference`），且无悬空引用、无未闭合区间；零容差
+- **自证**：故意剥离 id=1 锚点造出 `build/orphan-comment.docx` 对照样本 →
+  `[FAIL] commentsIntact ... 1 orphan comment(s) [1]`，断言确实会 fire。
+- 主交付 `config/verify.json` 已加入这两条，`commentCount = 4` PASS、
+  `commentsIntact` → `4 comment(s), all anchored and referenced` PASS。
+
+### 回归
+
+`node tests/run.mjs --smoke` → **PASS 95/95**；主交付文档断言 **64/64 passed**
+（含新增两条批注断言）；Node `validate.js` PASS；PRO `verify_elements.py` 落地 76 项。
+
+---
+
 ## 2026-10-13（第十轮）—— 新建 `<w:pgMar/>` 漏写 XSD 必填属性
 
 - **触发**：给一个**没有 pgMar** 的节声明页边距——`pageSetup.sections."1".margins`，封面节是典型场景

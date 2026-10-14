@@ -167,6 +167,7 @@ For multi-paragraph content, pass multiple Blocks in one op rather than chaining
 - **Heading locator ambiguity**: returns first match. Use `find_paragraphs` to disambiguate, then refer by `paragraph` index.
 - **Stale element**: if op A removes paragraphs and op B targets one of them, op B fails. Reorder so deletes / replaces happen last, or split into separate runs.
 - **Empty body**: `whole-body` on a doc with zero paragraphs only accepts `insert-*` (appends before the trailing `<w:sectPr>`).
+- **Comment anchors survive `replace` / `delete`**: comments live in `word/comments.xml` but are *shown* through three anchors inside the body — `commentRangeStart`, `commentRangeEnd`, and a run holding `commentReference`. Removing or rewriting the paragraph that carries them used to orphan the comment silently (it stays in `comments.xml`, invisible in Word). The engine now migrates the anchors to the nearest surviving paragraph (previous sibling first, then next) before the old paragraph goes away, and prints `[apply] warning: replace|delete — N comment anchor(s) moved ...` to stderr. `replace` with no surviving paragraph at all throws rather than dropping them. Assert the invariant in `verify.json` with `{ "type": "commentsIntact" }` + `{ "type": "commentCount", "eq": N }`.
 
 ## Compose with other shapes
 

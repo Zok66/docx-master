@@ -344,15 +344,35 @@ class DocxPackage:
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
             for part in self._order:
                 if part in self._parts:
-                    zf.writestr(part, self._parts[part])
+                    zf.writestr(part, self._normalise(part))
             # Any part added without going through write() (defensive).
             for part, data in self._parts.items():
                 if part not in self._order:
-                    zf.writestr(part, data)
+                    zf.writestr(part, self._normalise(part))
         if os.path.exists(dst):
             os.remove(dst)
         os.replace(tmp, dst)
         return dst
+
+    def _normalise(self, part: str) -> bytes:
+        """Expand self-closed `<w:t/>` / `<w:t xml:space="preserve"/>` /
+        `<w:instrText/>` on the way out.
+
+        An lxml round-trip serialises an empty text node self-closed, while the
+        JS engine (and the verify tokenizer) treat `<w:t></w:t>` as the
+        canonical empty form — the self-closed variant used to make text
+        extraction swallow the following body (P0-1 / P1-14). Doing this at the
+        package boundary covers every part an operation wrote, including ones
+        fabricated later.
+
+        The regex — not a substring test — decides. An earlier version
+        short-circuited on `b"<w:t/"` and silently missed the very common
+        attribute-bearing form `b'<w:t xml:space="preserve"/>'`."""
+        data = self._parts[part]
+        if not part.endswith(".xml"):
+            return data
+        text = data.decode("utf-8")
+        return expand_self_closed_text(text).encode("utf-8")
 
     def close(self) -> None:
         """Nothing to release — parts live in memory."""
@@ -377,6 +397,22 @@ def esc(text: str) -> str:
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace('"', "&quot;"))
+
+
+SELF_CLOSED_TEXT_RE = re.compile(r"<(w:t|w:instrText)((?:\s[^>]*?)?)\s*/>")
+
+
+def expand_self_closed_text(xml: str) -> str:
+    """`<w:t/>` → `<w:t></w:t>` (and the `w:instrText` twin).
+
+    Python-side counterpart of the JS engine's `expandSelfClosedTextNodes()`.
+    lxml serialises an empty element self-closed; the JS tokenizer and Word's
+    field machinery both read that form differently from the explicit empty
+    pair, so the package boundary normalises it (P1-14)."""
+    return SELF_CLOSED_TEXT_RE.sub(
+        lambda m: "<%s%s></%s>" % (m.group(1), m.group(2) or "", m.group(1)),
+        xml,
+    )
 
 
 def para_text(p) -> str:
