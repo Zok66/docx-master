@@ -4617,7 +4617,7 @@ function toggleElement(ownerDoc, qname, on) {
 }
 function buildRPrChildren(fmt, ownerDoc) {
 	const out = [];
-	if (fmt.fontLatin || fmt.fontCJK) {
+	if (fmt.fontLatin || fmt.fontCJK || fmt.fontCs) {
 		const rFonts = ownerDoc.createElementNS(w$12, "w:rFonts");
 		const ascii = fmt.fontLatin ?? fmt.fontCJK ?? "";
 		const ea = fmt.fontCJK ?? fmt.fontLatin ?? "";
@@ -4626,6 +4626,7 @@ function buildRPrChildren(fmt, ownerDoc) {
 			rFonts.setAttributeNS(w$12, "w:hAnsi", ascii);
 		}
 		if (ea) rFonts.setAttributeNS(w$12, "w:eastAsia", ea);
+		if (fmt.fontCs) rFonts.setAttributeNS(w$12, "w:cs", fmt.fontCs);
 		out.push(rFonts);
 	}
 	if (fmt.size !== void 0) {
@@ -4636,6 +4637,10 @@ function buildRPrChildren(fmt, ownerDoc) {
 		const szCs = ownerDoc.createElementNS(w$12, "w:szCs");
 		szCs.setAttributeNS(w$12, "w:val", String(halfPt));
 		out.push(szCs);
+	} else if (fmt.sizeCs !== void 0) {
+		const szCs = ownerDoc.createElementNS(w$12, "w:szCs");
+		szCs.setAttributeNS(w$12, "w:val", String(toHalfPt(fmt.sizeCs, "sizeCs")));
+		out.push(szCs);
 	}
 	if (fmt.bold !== void 0) {
 		out.push(toggleElement(ownerDoc, "w:b", fmt.bold));
@@ -4645,9 +4650,13 @@ function buildRPrChildren(fmt, ownerDoc) {
 		out.push(toggleElement(ownerDoc, "w:i", fmt.italic));
 		out.push(toggleElement(ownerDoc, "w:iCs", fmt.italic));
 	}
-	if (fmt.underline !== void 0) {
+	if (fmt.underline !== void 0 || fmt.underlineStyle !== void 0 || fmt.underlineColor !== void 0) {
 		const u = ownerDoc.createElementNS(w$12, "w:u");
-		u.setAttributeNS(w$12, "w:val", fmt.underline ? "single" : "none");
+		// style wins over the boolean; `underline: false` with no style is an
+		// explicit "none" (same contract as before the extension)
+		const val = fmt.underlineStyle ?? (fmt.underline === false ? "none" : "single");
+		u.setAttributeNS(w$12, "w:val", val);
+		if (fmt.underlineColor !== void 0) u.setAttributeNS(w$12, "w:color", fmt.underlineColor);
 		out.push(u);
 	}
 	if (fmt.strike !== void 0) out.push(toggleElement(ownerDoc, "w:strike", fmt.strike));
@@ -4659,6 +4668,25 @@ function buildRPrChildren(fmt, ownerDoc) {
 		sp.setAttributeNS(w$12, "w:val", String(toTwips(fmt.charSpacing, "charSpacing")));
 		out.push(sp);
 	}
+	if (fmt.characterScale !== void 0) {
+		// w:w is ST_TextScale: percent written as a string with a trailing
+		// "%", e.g. 150 → "150%" (the bare-integer union member is
+		// ST_TextScaleDecimal, but the percent form is what Word writes)
+		const scale = ownerDoc.createElementNS(w$12, "w:w");
+		scale.setAttributeNS(w$12, "w:val", `${Math.round(fmt.characterScale)}%`);
+		out.push(scale);
+	}
+	if (fmt.kern !== void 0) {
+		const kern = ownerDoc.createElementNS(w$12, "w:kern");
+		kern.setAttributeNS(w$12, "w:val", String(toHalfPt(fmt.kern, "kern")));
+		out.push(kern);
+	}
+	if (fmt.position !== void 0) {
+		// w:position is ST_SignedHpsMeasure — half-points, may be negative
+		const pos = ownerDoc.createElementNS(w$12, "w:position");
+		pos.setAttributeNS(w$12, "w:val", String(Math.round(parseLengthPt(fmt.position, "position") * HALF_PT_PER_PT)));
+		out.push(pos);
+	}
 	if (fmt.emphasisMark) {
 		const em = ownerDoc.createElementNS(w$12, "w:em");
 		em.setAttributeNS(w$12, "w:val", fmt.emphasisMark);
@@ -4669,12 +4697,43 @@ function buildRPrChildren(fmt, ownerDoc) {
 		c.setAttributeNS(w$12, "w:val", fmt.color);
 		out.push(c);
 	}
+	if (fmt.highlight) {
+		const hl = ownerDoc.createElementNS(w$12, "w:highlight");
+		hl.setAttributeNS(w$12, "w:val", fmt.highlight);
+		out.push(hl);
+	}
+	if (fmt.shading) {
+		const shd = ownerDoc.createElementNS(w$12, "w:shd");
+		shd.setAttributeNS(w$12, "w:val", "clear");
+		if (fmt.shading.color !== void 0) shd.setAttributeNS(w$12, "w:color", fmt.shading.color);
+		shd.setAttributeNS(w$12, "w:fill", fmt.shading.fill);
+		out.push(shd);
+	}
+	if (fmt.border) {
+		const bdr = ownerDoc.createElementNS(w$12, "w:bdr");
+		bdr.setAttributeNS(w$12, "w:val", "single");
+		bdr.setAttributeNS(w$12, "w:color", fmt.border.color);
+		if (fmt.border.size !== void 0) bdr.setAttributeNS(w$12, "w:sz", String(toEighthPt(fmt.border.size, "border.size")));
+		if (fmt.border.space !== void 0) bdr.setAttributeNS(w$12, "w:space", String(Math.round(parseLengthPt(fmt.border.space, "border.space"))));
+		out.push(bdr);
+	}
 	if (fmt.vertAlign) {
 		const va = ownerDoc.createElementNS(w$12, "w:vertAlign");
 		va.setAttributeNS(w$12, "w:val", fmt.vertAlign);
 		out.push(va);
 	}
 	if (fmt.rtl !== void 0) out.push(toggleElement(ownerDoc, "w:rtl", fmt.rtl));
+	for (const [key, qname] of [
+		["shadow", "w:shadow"],
+		["outlineText", "w:outline"],
+		["emboss", "w:emboss"],
+		["imprint", "w:imprint"],
+		["smallCaps", "w:smallCaps"],
+		["allCaps", "w:caps"],
+		["hidden", "w:vanish"]
+	]) {
+		if (fmt[key] !== void 0) out.push(toggleElement(ownerDoc, qname, fmt[key]));
+	}
 	const orderIdx = (el) => {
 		const i = RPR_CHILD_ORDER.indexOf(el.localName);
 		return i < 0 ? RPR_CHILD_ORDER.length : i;
@@ -4703,6 +4762,19 @@ const RPR_MANAGED_LOCAL_NAMES = new Set([
 	"strike",
 	"dstrike",
 	"spacing",
+	"w",
+	"kern",
+	"position",
+	"highlight",
+	"shd",
+	"bdr",
+	"shadow",
+	"outline",
+	"emboss",
+	"imprint",
+	"smallCaps",
+	"caps",
+	"vanish",
 	"em",
 	"color",
 	"vertAlign",
@@ -4710,10 +4782,31 @@ const RPR_MANAGED_LOCAL_NAMES = new Set([
 ]);
 function buildPPrChildren(fmt, ownerDoc) {
 	const out = [];
-	// `<w:bidi/>` is the first child the builder can emit (CT_PPrBase order:
-	// ... autoSpaceDN, bidi, adjustRightInd, snapToGrid, spacing, ind, ...),
-	// and this list is written in push order — so bidi goes on top.
+	// Push order follows CT_PPrBase child order (ECMA-376 §17.3.1.26):
+	// keepNext, keepLines, pageBreakBefore, widowControl, pBdr, shd, tabs,
+	// …, kinsoku, wordWrap, overflowPunct, topLinePunct, autoSpaceDE,
+	// autoSpaceDN, bidi, adjustRightInd, snapToGrid, spacing, ind, …, jc,
+	// …, textAlignment, …, outlineLvl. There is no sort at the end — the
+	// sequence below IS the order contract.
+	if (fmt.keepNext !== void 0) out.push(toggleElement(ownerDoc, "w:keepNext", fmt.keepNext));
+	if (fmt.keepLines !== void 0) out.push(toggleElement(ownerDoc, "w:keepLines", fmt.keepLines));
+	if (fmt.pageBreakBefore !== void 0) out.push(toggleElement(ownerDoc, "w:pageBreakBefore", fmt.pageBreakBefore));
+	if (fmt.widowControl !== void 0) out.push(toggleElement(ownerDoc, "w:widowControl", fmt.widowControl));
+	if (fmt.shading) {
+		const shd = ownerDoc.createElementNS(w$12, "w:shd");
+		shd.setAttributeNS(w$12, "w:val", fmt.shading.pattern ?? "clear");
+		if (fmt.shading.color !== void 0) shd.setAttributeNS(w$12, "w:color", fmt.shading.color);
+		shd.setAttributeNS(w$12, "w:fill", fmt.shading.fill);
+		out.push(shd);
+	}
+	if (fmt.kinsoku !== void 0) out.push(toggleElement(ownerDoc, "w:kinsoku", fmt.kinsoku));
+	if (fmt.wordWrap !== void 0) out.push(toggleElement(ownerDoc, "w:wordWrap", fmt.wordWrap));
+	if (fmt.overflowPunct !== void 0) out.push(toggleElement(ownerDoc, "w:overflowPunct", fmt.overflowPunct));
+	if (fmt.topLinePunct !== void 0) out.push(toggleElement(ownerDoc, "w:topLinePunct", fmt.topLinePunct));
+	if (fmt.autoSpaceDE !== void 0) out.push(toggleElement(ownerDoc, "w:autoSpaceDE", fmt.autoSpaceDE));
+	if (fmt.autoSpaceDN !== void 0) out.push(toggleElement(ownerDoc, "w:autoSpaceDN", fmt.autoSpaceDN));
 	if (fmt.bidi !== void 0) out.push(toggleElement(ownerDoc, "w:bidi", fmt.bidi));
+	if (fmt.snapToGrid !== void 0) out.push(toggleElement(ownerDoc, "w:snapToGrid", fmt.snapToGrid));
 	if (fmt.spaceBefore !== void 0 || fmt.spaceAfter !== void 0 || fmt.lineSpacing !== void 0) {
 		const spacing = ownerDoc.createElementNS(w$12, "w:spacing");
 		if (fmt.spaceBefore !== void 0) spacing.setAttributeNS(w$12, "w:before", String(toTwips(fmt.spaceBefore, "spaceBefore")));
@@ -4742,6 +4835,11 @@ function buildPPrChildren(fmt, ownerDoc) {
 		jc.setAttributeNS(w$12, "w:val", fmt.alignment);
 		out.push(jc);
 	}
+	if (fmt.textAlignment) {
+		const ta = ownerDoc.createElementNS(w$12, "w:textAlignment");
+		ta.setAttributeNS(w$12, "w:val", fmt.textAlignment);
+		out.push(ta);
+	}
 	if (fmt.outlineLevel !== void 0) {
 		const ol = ownerDoc.createElementNS(w$12, "w:outlineLvl");
 		ol.setAttributeNS(w$12, "w:val", String(fmt.outlineLevel));
@@ -4753,10 +4851,23 @@ function buildPPrChildren(fmt, ownerDoc) {
 * which are addressed separately by the engine — pStyle through styleId
 * assignment, numPr through numbering binding). */
 const PPR_MANAGED_LOCAL_NAMES = new Set([
+	"keepNext",
+	"keepLines",
+	"pageBreakBefore",
+	"widowControl",
+	"shd",
+	"kinsoku",
+	"wordWrap",
+	"overflowPunct",
+	"topLinePunct",
+	"autoSpaceDE",
+	"autoSpaceDN",
 	"bidi",
+	"snapToGrid",
 	"spacing",
 	"ind",
 	"jc",
+	"textAlignment",
 	"outlineLvl"
 ]);
 function emitRun(text, format, ownerDoc) {
@@ -4771,6 +4882,92 @@ function emitRun(text, format, ownerDoc) {
 	t.appendChild(ownerDoc.createTextNode(text));
 	r.appendChild(t);
 	return r;
+}
+/** Emit pinyin-annotated runs. CT_RubyPr children are all required and
+* ordered (rubyAlign / hps / hpsRaise / hpsBaseText / lid); `w:rt` must
+* precede `w:rubyBase` inside CT_Ruby. The base run inherits the inline
+* format so bold/italic/color carry through to the annotated text. */
+function emitRubyRuns(ownerDoc, piece, baseFormat) {
+	const align = piece.align ?? "distributeSpace";
+	const raiseHalf = piece.raise !== void 0 ? toHalfPt(piece.raise, "ruby.raise") : null;
+	const baseHalfExplicit = piece.baseSize !== void 0 ? toHalfPt(piece.baseSize, "ruby.baseSize") : null;
+	let pairs;
+	if (typeof piece.ruby === "string") {
+		if (!piece.pinyin || piece.pinyin.length === 0) {
+			throw new Error('ruby: the shorthand form { ruby: "汉字", pinyin: [...] } requires a parallel pinyin array');
+		}
+		const chars = Array.from(piece.ruby);
+		if (piece.pinyin.length !== chars.length) {
+			throw new Error(
+				`ruby: pinyin[] has ${piece.pinyin.length} entr${piece.pinyin.length === 1 ? "y" : "ies"} but the base string has ${chars.length} character(s) — they must correspond one-to-one (use "" for a character without a reading)`
+			);
+		}
+		pairs = chars.map((c, i) => ({ base: c, pinyin: piece.pinyin[i] }));
+	} else {
+		pairs = piece.ruby;
+	}
+	const baseFormatHalf = baseFormat?.size !== void 0 ? toHalfPt(baseFormat.size, "size") : null;
+	const out = [];
+	for (const { base, pinyin } of pairs) {
+		if (!pinyin) {
+			out.push(emitRun(base, baseFormat, ownerDoc));
+			continue;
+		}
+		const baseHalf = baseHalfExplicit ?? baseFormatHalf ?? 21;
+		const pinyinHalf = piece.hps !== void 0 ? toHalfPt(piece.hps, "ruby.hps") : Math.max(5, Math.floor(baseHalf / 2));
+		const raiseVal = raiseHalf ?? baseHalf;
+		const r = ownerDoc.createElementNS(w$12, "w:r");
+		const ruby = ownerDoc.createElementNS(w$12, "w:ruby");
+		const pr = ownerDoc.createElementNS(w$12, "w:rubyPr");
+		const alignEl = ownerDoc.createElementNS(w$12, "w:rubyAlign");
+		alignEl.setAttributeNS(w$12, "w:val", align);
+		pr.appendChild(alignEl);
+		const hpsEl = ownerDoc.createElementNS(w$12, "w:hps");
+		hpsEl.setAttributeNS(w$12, "w:val", String(pinyinHalf));
+		pr.appendChild(hpsEl);
+		const raiseEl = ownerDoc.createElementNS(w$12, "w:hpsRaise");
+		raiseEl.setAttributeNS(w$12, "w:val", String(raiseVal));
+		pr.appendChild(raiseEl);
+		const baseEl = ownerDoc.createElementNS(w$12, "w:hpsBaseText");
+		baseEl.setAttributeNS(w$12, "w:val", String(baseHalf));
+		pr.appendChild(baseEl);
+		const lidEl = ownerDoc.createElementNS(w$12, "w:lid");
+		lidEl.setAttributeNS(w$12, "w:val", "zh-CN");
+		pr.appendChild(lidEl);
+		ruby.appendChild(pr);
+		const rt = ownerDoc.createElementNS(w$12, "w:rt");
+		const rtR = ownerDoc.createElementNS(w$12, "w:r");
+		const rtRPr = ownerDoc.createElementNS(w$12, "w:rPr");
+		const rtSz = ownerDoc.createElementNS(w$12, "w:sz");
+		rtSz.setAttributeNS(w$12, "w:val", String(pinyinHalf));
+		rtRPr.appendChild(rtSz);
+		const rtSzCs = ownerDoc.createElementNS(w$12, "w:szCs");
+		rtSzCs.setAttributeNS(w$12, "w:val", String(pinyinHalf));
+		rtRPr.appendChild(rtSzCs);
+		rtR.appendChild(rtRPr);
+		const rtT = ownerDoc.createElementNS(w$12, "w:t");
+		rtT.setAttribute("xml:space", "preserve");
+		rtT.appendChild(ownerDoc.createTextNode(pinyin));
+		rtR.appendChild(rtT);
+		rt.appendChild(rtR);
+		ruby.appendChild(rt);
+		const rb = ownerDoc.createElementNS(w$12, "w:rubyBase");
+		const rbR = ownerDoc.createElementNS(w$12, "w:r");
+		if (baseFormat) {
+			const rbRPr = ownerDoc.createElementNS(w$12, "w:rPr");
+			for (const c of buildRPrChildren(baseFormat, ownerDoc)) rbRPr.appendChild(c);
+			if (rbRPr.childNodes.length > 0) rbR.appendChild(rbRPr);
+		}
+		const rbT = ownerDoc.createElementNS(w$12, "w:t");
+		rbT.setAttribute("xml:space", "preserve");
+		rbT.appendChild(ownerDoc.createTextNode(base));
+		rbR.appendChild(rbT);
+		rb.appendChild(rbR);
+		ruby.appendChild(rb);
+		r.appendChild(ruby);
+		out.push(r);
+	}
+	return out;
 }
 function emitRichText(rt, ownerDoc, ctx, defaultFormat) {
 	if (typeof rt === "string") return rt.length === 0 ? [] : [emitRun(rt, defaultFormat, ownerDoc)];
@@ -4803,6 +5000,10 @@ function emitRichText(rt, ownerDoc, ctx, defaultFormat) {
 			const info = ctx.resolveStyle(piece.styleRef);
 			if (!info) throw new Error(`InlineStyleRef: styleId "${piece.styleRef}" not found in styles.xml. Declare it via styles[] in this apply, or reference an existing styleId.`);
 			for (const r of emitInlineStyleRef(ownerDoc, info, piece.numberOnly ?? false, fmt)) out.push(r);
+			continue;
+		}
+		if ("ruby" in piece) {
+			for (const r of emitRubyRuns(ownerDoc, piece, piece.format ?? defaultFormat)) out.push(r);
 			continue;
 		}
 		if ("break" in piece) {
@@ -12038,7 +12239,64 @@ const RunFormatSchema = strictObject({
 	* `paraFormat.bidi` for RTL languages (Arabic / Hebrew); Word uses rtl
 	* to pick the cs font and to mirror punctuation. Schema position is
 	* after `vertAlign`, before `w:em`. */
-	rtl: optional(boolean())
+	rtl: optional(boolean()),
+	/** Text highlight (荧光笔). `w:highlight` — 16 named colors + none.
+	* Distinct from `shading`, which is the fill behind the glyph box. */
+	highlight: optional(_enum([
+		"yellow", "green", "cyan", "magenta", "blue", "red",
+		"darkBlue", "darkCyan", "darkGreen", "darkMagenta",
+		"darkRed", "darkYellow", "darkGray", "lightGray",
+		"black", "white", "none"
+	])),
+	/** Character scaling (字符缩放, 字体对话框 → 字符间距 → 缩放).
+	* `w:w` — percent as a number, 1–600 (150 = 150%). ECMA-376 stores
+	* fiftieths of a percent on the wire; the engine converts. */
+	characterScale: optional(number().check(_gte(1), _lte(600))),
+	/** Raised / lowered text (字符位置 → 提升/降低), in points, may be
+	* negative. `w:position` — ST_SignedHpsMeasure (half-points on the
+	* wire). Finer-grained than vertAlign superscript/subscript. */
+	position: optional(LengthValue),
+	/** Font effects (字体对话框 → 效果). All `w:` toggle elements. */
+	shadow: optional(boolean()),
+	outlineText: optional(boolean()),
+	emboss: optional(boolean()),
+	imprint: optional(boolean()),
+	smallCaps: optional(boolean()),
+	allCaps: optional(boolean()),
+	hidden: optional(boolean()),
+	/** Kerning threshold (为字体调整字间距): kern only applies to
+	* characters at or above this size. `w:kern` — half-points on the
+	* wire; give a Length like `"1pt"` (Word's minimum). */
+	kern: optional(LengthValue),
+	/** Complex-script font (复杂文种 → 字体). `w:rFonts/@w:cs`. Pair with
+	* `sizeCs` for the complex-script size and `rtl` for direction. */
+	fontCs: optional(string()),
+	/** Complex-script size (复杂文种 → 字号). `w:szCs` alone when `size`
+	* is absent; `size` still wins for `w:sz` when both are set. */
+	sizeCs: optional(LengthValue),
+	/** Underline line shape (下划线线型). Extends the `underline`
+	* boolean: style wins when both are given, `underline: false` still
+	* means explicit "none". */
+	underlineStyle: optional(_enum([
+		"single", "double", "thick", "dotted", "dottedHeavy",
+		"dash", "dashedHeavy", "dashLong", "dashLongHeavy",
+		"dotDash", "dashDotHeavy", "dotDotDash", "dashDotDotHeavy",
+		"wave", "wavyHeavy", "wavyDouble", "words", "none"
+	])),
+	underlineColor: optional(ColorHex),
+	/** Character shading (字符底纹). `w:shd` with fill only — the run
+	* level pattern is always "clear". */
+	shading: optional(strictObject({
+		fill: ColorHex,
+		color: optional(ColorHex)
+	})),
+	/** Character border (字符边框). `w:bdr` — color required; size is
+	* eighth-points (default 4), space is points (default 0). */
+	border: optional(strictObject({
+		color: ColorHex,
+		size: optional(LengthValue),
+		space: optional(LengthValue)
+	}))
 });
 const ParagraphFormatSchema = strictObject({
 	alignment: optional(_enum([
@@ -12058,11 +12316,79 @@ const ParagraphFormatSchema = strictObject({
 	/** RTL paragraph direction (`<w:bidi/>`). Flips the base direction of
 	* the paragraph; pair with `runFormat.rtl` on the RTL runs. Schema
 	* position is before `w:spacing`, so it is emitted first. */
-	bidi: optional(boolean())
+	bidi: optional(boolean()),
+	/** Line and page breaks (段落对话框 → 换行和分页). All `w:` toggles
+	* on pPr; order is handled by the emitter. */
+	keepNext: optional(boolean()),
+	keepLines: optional(boolean()),
+	pageBreakBefore: optional(boolean()),
+	/** Widow/orphan control (孤行控制). `w:widowControl` — `false` is an
+	* explicit off-toggle against a style that turns it on. */
+	widowControl: optional(boolean()),
+	/** Snap to document grid (如果定义了文档网格，则与网格对齐). `w:snapToGrid`. */
+	snapToGrid: optional(boolean()),
+	/** Asian typography line-break rules (换行区):
+	* `kinsoku` 按中文习惯控制首尾字符 · `wordWrap` 允许西文在单词中间换行
+	* (explicit `false` enables mid-word breaks) · `overflowPunct`
+	* 允许标点溢出边界 · `topLinePunct` 允许行首标点压缩 ·
+	* `autoSpaceDE` 自动调整中西文间距 · `autoSpaceDN` 中文与数字间距. */
+	kinsoku: optional(boolean()),
+	wordWrap: optional(boolean()),
+	overflowPunct: optional(boolean()),
+	topLinePunct: optional(boolean()),
+	autoSpaceDE: optional(boolean()),
+	autoSpaceDN: optional(boolean()),
+	/** Vertical text alignment on the line (文本对齐方式).
+	* `w:textAlignment` — how runs of differing heights align. */
+	textAlignment: optional(_enum([
+		"auto", "baseline", "center", "top", "bottom"
+	])),
+	/** Paragraph shading (段落底纹). `w:shd` on pPr — fill + optional
+	* pattern color; pattern is "clear" unless given. */
+	shading: optional(strictObject({
+		fill: ColorHex,
+		color: optional(ColorHex),
+		pattern: optional(_enum([
+			"clear", "solid", "pct5", "pct10", "pct20", "pct25",
+			"pct30", "pct40", "pct50", "pct60", "pct70", "pct75",
+			"pct80", "pct90", "diagCross", "horizontalStripe", "verticalStripe"
+		]))
+	}))
 });
 const InlineRunSchema = strictObject({
 	text: string(),
 	format: optional(RunFormatSchema)
+});
+/** One base character (or ligature group) with its reading. `pinyin`
+* omitted / empty → the base renders as a plain run (no ruby). */
+const RubyPairSchema = strictObject({
+	base: string().check(refine((s) => s.length > 0, { error: "ruby base must be non-empty" })),
+	pinyin: optional(string())
+});
+/** Pinyin annotation (拼音指南). `w:ruby` — Word's Phonetic Guide is
+* exactly this structure. Two input shapes:
+*
+* 1. shorthand: `{ ruby: "拼音注音", pinyin: ["pīn","yīn","zhù","yīn"] }`
+*    — the base string is split per character and paired with pinyin[]
+*    one-to-one (lengths must match; `""` skips a character);
+* 2. pairs: `{ ruby: [{ base: "拼", pinyin: "pīn" }, { base: "、" }] }`
+*    — full control, each entry independent.
+*
+* Optional typography: `align` (`w:rubyAlign`, default distributeSpace),
+* `hps` (pinyin size, default half the base size), `raise`
+* (`w:hpsRaise` gap, default = base size), `baseSize` (default 21
+* half-points = 10.5pt). CT_RubyPr children are all required on the
+* wire — the emitter fills the defaults. */
+const InlineRubySchema = strictObject({
+	ruby: union([string(), array(RubyPairSchema)]),
+	pinyin: optional(array(string())),
+	align: optional(_enum([
+		"distributeSpace", "center", "distributeLetter",
+		"left", "right", "distributed"
+	])),
+	hps: optional(LengthValue),
+	raise: optional(LengthValue),
+	baseSize: optional(LengthValue)
 });
 /** Word bookmark name. ECMA-376 §17.13.7 mandates start-with-letter-or-
 * underscore + alphanumerics; Word's UI lenient set adds hyphens. Capped
@@ -12163,6 +12489,7 @@ const InlineBreakSchema = strictObject({ break: union([
 ]) });
 const InlineNodeSchema = union([
 	InlineRunSchema,
+	InlineRubySchema,
 	InlineRefSchema,
 	InlineEquationSchema,
 	InlineHyperlinkSchema,

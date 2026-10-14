@@ -107,6 +107,12 @@ function fieldName(instr) {
  */
 function textOf(xml) {
 	if (!xml) return "";
+	// Ruby readings (`w:rt`) are annotation, not body text. Left in place,
+	// they interleave with the base text in this linear scan and break every
+	// `contains` assertion over annotated paragraphs — "拼音注音" would
+	// extract as "pīn 拼yīn 音…". Stripping `w:rt` leaves `w:rubyBase`'s
+	// runs, which the tokenizer picks up as ordinary body text (P2-20).
+	xml = xml.replace(/<w:rt(?:\s[^>]*)?\/>|<w:rt(?:\s[^>]*)?>[\s\S]*?<\/w:rt>/g, "");
 	let out = "";
 	let depth = 0;
 	let inResult = false;

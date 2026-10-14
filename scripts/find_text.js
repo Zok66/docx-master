@@ -169,6 +169,23 @@ function buildParagraphProjection(pEl, fieldState) {
 			if (ln === "t") {
 				const s = c.textContent ?? "";
 				if (s) addSegment(s, runIndex, region);
+			} else if (ln === "ruby") {
+				// Pinyin annotation (拼音指南): the base text inside
+				// `w:rubyBase` IS paragraph content and must be
+				// searchable; the reading inside `w:rt` is annotation
+				// and stays out of the projection, so the base
+				// characters remain contiguous (P2-20).
+				for (const rubyBase of c.getElementsByTagNameNS(w, "rubyBase")) {
+					for (const br of getChildren(rubyBase)) {
+						if (br.namespaceURI !== w || br.localName !== "r") continue;
+						for (const bc of getChildren(br)) {
+							if (bc.namespaceURI === w && bc.localName === "t") {
+								const s = bc.textContent ?? "";
+								if (s) addSegment(s, runIndex, region);
+							}
+						}
+					}
+				}
 			} else if (ln === "tab") addSegment(TAB_SENTINEL, runIndex, region);
 			else if (ln === "br" || ln === "cr") addSegment(BREAK_SENTINEL, runIndex, region);
 			else if (ln === "fldChar") {

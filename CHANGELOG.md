@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-10-14（第十三轮）—— run / 段落级格式扩展 + 拼音注音正式纳入引擎
+
+用户对照 Word 字体 / 段落对话框逐项盘点后的能力补齐。
+
+### `runFormat` 新增 17 字段（`buildRPrChildren` 全部落地，顺序由 `RPR_CHILD_ORDER` 排序保证）
+
+- `highlight` — 荧光笔，`w:highlight` 16 色 + `none`
+- `characterScale` — 字符缩放，数字 1–600（150 = 150%）；**线上格式是 `ST_TextScale`，
+  必须写带 `%` 的字符串**（`"150%"`）——裸整数 union 分支会被 XSD 拒绝，实测踩过
+- `position` — 字符位置提升/降低（Length，可负；`w:position` 半磅）
+- `shadow` / `outlineText` / `emboss` / `imprint` / `smallCaps` / `allCaps` / `hidden` — 字体效果七开关
+  （`hidden` → `w:vanish`；`outlineText` → `w:outline`，避开与段落 `outlineLevel` 撞名）
+- `kern` — 为字体调整字间距的阈值（Length，半磅；Word 默认 `"1pt"`）
+- `fontCs` / `sizeCs` — 复杂文种字体 / 字号（`w:rFonts@w:cs` / 独立 `w:szCs`）
+- `underlineStyle`（18 种线型）+ `underlineColor` — 下划线从布尔扩展；style 优先，`underline: false` 仍显式关
+- `shading` — 字符底纹（`w:shd`，fill 必填）
+- `border` — 字符边框（`w:bdr`，size 八分之一磅 / space 磅）
+- `RPR_MANAGED_LOCAL_NAMES` 同步扩容（`format` op 清理时认得新元素）
+
+### `paraFormat` 新增 14 字段（`buildPPrChildren` 重写 push 序列）
+
+- 换行和分页：`keepNext` / `keepLines` / `pageBreakBefore` / `widowControl`
+- 中文版式：`kinsoku`（避头尾）/ `wordWrap`（`false` = 允许西文断词）/ `overflowPunct` /
+  `topLinePunct` / `autoSpaceDE` / `autoSpaceDN`
+- `snapToGrid`（与文档网格对齐）、`textAlignment`（文本对齐方式 5 值）、`shading`（段落底纹，含 pattern）
+- **`buildPPrChildren` 没有 sort，push 序列即 CT_PPrBase 顺序契约**——新元素按
+  keepNext→…→shd→kinsoku→…→autoSpaceDN→bidi→snapToGrid→spacing→ind→jc→textAlignment→outlineLvl 插入
+
+### 拼音注音（`w:ruby`）正式纳入引擎
+
+- `text` 数组新增 inline piece：shorthand `{ ruby: "拼音注音", pinyin: ["pīn","yīn","zhù","yīn"] }`
+  （逐字对应，长度必须一致，`""` 跳过该字）或 pair 形式
+  `{ ruby: [{ base: "行", pinyin: "xíng" }, { base: "、" }] }`（多音字精确控制）
+- 可选 `align` / `hps` / `raise` / `baseSize`；`CT_RubyPr` 五个子元素全部 required，emitter 填默认值
+  （拼音字号=基文一半、`hpsRaise`=基文字号、`lid=zh-CN`）；基文 run 继承 inline format
+- **P2-20 修复**：`find_text.js` 投影与 `_shared/locator.js` 的 `paragraphText()` 现在把
+  `w:rubyBase` 里的基文计入正文、`w:rt` 的拼音排除——带拼音的段落重新可查找、可断言、可锚定；
+  `verify.js` 的 `textOf()` 先剥 `<w:rt>` 再跑 token 正则（线性扫描里拼音与基文交错，不剥必假阴）
+- 实测：`find_text "拼音注音"` → 1 match（cross-run）；`verify contains` PASS；
+  多音字两个独立 ruby（行 xíng / 行 háng）连续可匹配
+
+### 回归
+
+`node tests/run.mjs --smoke` → PASS 95/95；能力验证文档 28 项新元素逐项 XML 核验全部命中，
+Node `validate.js` PASS，PRO `validate.py`（XSD + OPC）PASS。
+
+---
+
 ## 2026-10-13（第十轮）—— 新建 `<w:pgMar/>` 漏写 XSD 必填属性
 
 - **触发**：给一个**没有 pgMar** 的节声明页边距——`pageSetup.sections."1".margins`，封面节是典型场景

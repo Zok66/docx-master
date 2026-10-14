@@ -239,10 +239,25 @@ function paragraphStyleId(pEl) {
 	return paragraphStyleId$1(pEl) ?? "Normal";
 }
 /** Plain-text content of a paragraph (concatenates <w:t> textContent across
-* all runs). Used by blockers / debug logging. */
+* all runs). Used by blockers / debug logging. Ruby runs (拼音注音) are
+* handled specially: the base text inside `w:rubyBase` counts as body
+* text — it IS the paragraph content — while the reading inside `w:rt`
+* is annotation and deliberately excluded, so "拼音注音演示" stays one
+* contiguous string for find/anchor purposes instead of being interleaved
+* with readings. */
 function paragraphText(pEl) {
 	let out = "";
-	for (const r of getChildrenNS(pEl, NS.w, "r")) for (const c of getChildren(r)) if (c.namespaceURI === NS.w && c.localName === "t") out += textContent(c);
+	for (const r of getChildrenNS(pEl, NS.w, "r")) for (const c of getChildren(r)) {
+		if (c.namespaceURI !== NS.w) continue;
+		if (c.localName === "t") out += textContent(c);
+		else if (c.localName === "ruby") {
+			for (const base of getChildrenNS(c, NS.w, "rubyBase")) {
+				for (const br of getChildrenNS(base, NS.w, "r")) {
+					for (const bc of getChildrenNS(br, NS.w, "t")) out += textContent(bc);
+				}
+			}
+		}
+	}
 	return out;
 }
 /** Read the trailing sectPr at body level (if any). Used for "append to
