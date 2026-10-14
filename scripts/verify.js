@@ -35,7 +35,9 @@
  *     { "type": "footerText", "regex": "^\\s*第\\s*<PAGE>\\s*页\\s*\\/\\s*共\\s*<NUMPAGES>\\s*页\\s*$" },
  *     { "type": "hasField", "field": "TOC", "scope": "body" },
  *     { "type": "pageSize", "w": 11906, "h": 16838 },
- *     { "type": "styleExists", "styleId": "Heading1" }
+ *     { "type": "styleExists", "styleId": "Heading1" },
+ *     { "type": "bookmarkExists", "name": "chap1" },
+ *     { "type": "refsResolve" }
  *   ]
  * }
  *
@@ -44,6 +46,8 @@
  *   Presence    contains · notContains · textMatches       (scope: body | header | footer | all)
  *   Parts       headerText · footerText                    (regex / equals, <PAGE> = field marker)
  *   Fields      hasField · noField
+ *   Bookmarks   refsResolve · bookmarkProblems · bookmarkExists · bookmarkMissing
+ *               bookmarkCount · refCount
  *   Setup       pageSize {w,h} · partExists {name}
  *   Styles      styleExists · styleMissing
  *   Metadata    author · title
@@ -52,58 +56,12 @@
  * Exit code: 0 all assertions passed; 1 any failed (or the file is unreadable).
  */
 import { readFileSync, existsSync } from "node:fs";
-import { inflateRawSync } from "node:zlib";
 import { resolve, dirname, isAbsolute } from "node:path";
+import { openZip, referenceBearingParts } from "./_shared/opc.js";
+import { analyzeParts, originOf } from "./_shared/bookmarks.js";
 
-// ── minimal OPC (zip) reader — no dependencies ──────────────────────────────
-
-const EOCD = 0x06054b50;
-const CEN = 0x02014b50;
-const LOC = 0x04034b50;
-
-function openZip(path) {
-	const buf = readFileSync(path);
-	let eocd = -1;
-	const floor = Math.max(0, buf.length - 66000);
-	for (let i = buf.length - 22; i >= floor; i--) {
-		if (buf.readUInt32LE(i) === EOCD) {
-			eocd = i;
-			break;
-		}
-	}
-	if (eocd < 0) throw new Error("not a zip/OPC package (no end-of-central-directory record)");
-	const count = buf.readUInt16LE(eocd + 10);
-	let off = buf.readUInt32LE(eocd + 16);
-	const entries = new Map();
-	for (let i = 0; i < count; i++) {
-		if (off + 46 > buf.length || buf.readUInt32LE(off) !== CEN) break;
-		const method = buf.readUInt16LE(off + 10);
-		const compSize = buf.readUInt32LE(off + 20);
-		const nameLen = buf.readUInt16LE(off + 28);
-		const extraLen = buf.readUInt16LE(off + 30);
-		const commentLen = buf.readUInt16LE(off + 32);
-		const localOff = buf.readUInt32LE(off + 42);
-		const name = buf.toString("utf8", off + 46, off + 46 + nameLen);
-		entries.set(name, { method, compSize, localOff });
-		off += 46 + nameLen + extraLen + commentLen;
-	}
-	return {
-		buf,
-		names: [...entries.keys()],
-		has: (n) => entries.has(n),
-		readText(name) {
-			const e = entries.get(name);
-			if (!e) return null;
-			if (buf.readUInt32LE(e.localOff) !== LOC) throw new Error(`corrupt local header for ${name}`);
-			const nLen = buf.readUInt16LE(e.localOff + 26);
-			const eLen = buf.readUInt16LE(e.localOff + 28);
-			const start = e.localOff + 30 + nLen + eLen;
-			const raw = buf.subarray(start, start + e.compSize);
-			const out = e.method === 0 ? raw : inflateRawSync(raw);
-			return out.toString("utf8");
-		}
-	};
-}
+// Package reading lives in _shared/opc.js so every diagnostic tool (verify,
+// inspect_bookmarks) opens a docx exactly the same way.
 
 // ── XML text extraction (regex-based; sufficient for auditing, not editing) ─
 
@@ -274,10 +232,18 @@ function analyze(file) {
 	for (const h of headers) for (const name of fieldsOf(h.xml)) allFields.add(name);
 	for (const ft of footers) for (const name of fieldsOf(ft.xml)) allFields.add(name);
 
+	// Bookmarks and the references that name them. Nothing above this line can
+	// see a broken one: XML stays well-formed, the XSD is satisfied, and Word
+	// still renders "Error! Bookmark not defined." into the middle of a
+	// sentence. Scanned package-wide because a header REF may target a body
+	// bookmark and vice versa.
+	const bookmarkScan = analyzeParts(referenceBearingParts(zip));
+
 	return {
 		file,
 		zip,
 		parts: { body: bodyXml, headers, footers },
+		bookmarkScan,
 		sectionCount: sectPrs.length,
 		paragraphCount: paragraphs.length,
 		paragraphTexts: paragraphs.map(textOf),
@@ -345,6 +311,22 @@ function evalAssertion(a, spec) {
 			case "hasField":
 			case "noField":
 				return `${t} ${spec.field}${scope}`;
+			case "bookmarkExists":
+			case "bookmarkMissing":
+				return `${t} ${JSON.stringify(spec.name)}`;
+			case "refsResolve":
+				return "refsResolve — every REF / PAGEREF / \\l anchor resolves";
+			case "bookmarkProblems":
+				return `bookmarkProblems ${spec.eq !== undefined ? `= ${spec.eq}` : "= 0"}`;
+			case "bookmarkCount":
+			case "refCount": {
+				const bits = [];
+				if (spec.eq !== undefined) bits.push(`= ${spec.eq}`);
+				if (spec.ne !== undefined) bits.push(`≠ ${spec.ne}`);
+				if (spec.min !== undefined) bits.push(`≥ ${spec.min}`);
+				if (spec.max !== undefined) bits.push(`≤ ${spec.max}`);
+				return `${t} ${bits.join(" and ") || "(no constraint)"}`;
+			}
 			case "styleExists":
 			case "styleMissing":
 				return `${t} ${spec.styleId || spec.name}`;
@@ -450,6 +432,53 @@ function evalAssertion(a, spec) {
 			const pass = a.zip.has(spec.name);
 			return { label: label(), pass, detail: pass ? "present" : "missing from package" };
 		}
+		case "bookmarkCount":
+		case "refCount": {
+			const actual = t === "bookmarkCount" ? a.bookmarkScan.bookmarks.length : a.bookmarkScan.refs.length;
+			const r = countCmp(actual, spec);
+			return { label: label(), pass: r.pass, detail: `actual ${actual}, expected ${r.want}` };
+		}
+		case "bookmarkExists":
+		case "bookmarkMissing": {
+			const name = String(spec.name ?? "");
+			const hit = a.bookmarkScan.names.has(name);
+			const pass = t === "bookmarkExists" ? hit : !hit;
+			const authored = a.bookmarkScan.bookmarks.filter((b) => originOf(b.name) === "custom");
+			return {
+				label: label(),
+				pass,
+				detail: pass
+					? "ok"
+					: `"${name}" ${hit ? "present" : "absent"} — ${a.bookmarkScan.bookmarks.length} bookmark(s) in the package, ${authored.length} authored (${authored.slice(0, 4).map((b) => b.name).join(", ") || "none"})`
+			};
+		}
+		case "refsResolve": {
+			// The assertion this whole module exists for: a reference that points
+			// at nothing is invisible in every other check.
+			const dangling = a.bookmarkScan.dangling;
+			const pass = dangling.length === 0;
+			const show = dangling.slice(0, 4).map((d) => `${d.refKind || "reference"} → "${d.name}" (${d.part} p#${d.para})`).join("; ");
+			return {
+				label: label(),
+				pass,
+				detail: pass
+					? `all ${a.bookmarkScan.refs.length} reference(s) resolve`
+					: `${dangling.length} dangling — ${show}${dangling.length > 4 ? ` … +${dangling.length - 4} more` : ""}`
+			};
+		}
+		case "bookmarkProblems": {
+			// `unclosed-field` is advisory (a field can legally open in one part and
+			// close in another); everything else is a malformed bookmark.
+			const bad = a.bookmarkScan.problems.filter((p) => p.kind !== "unclosed-field");
+			const r = countCmp(bad.length, { eq: 0, ...spec });
+			return {
+				label: label(),
+				pass: r.pass,
+				detail: bad.length
+					? `actual ${bad.length}, expected ${r.want} — ${bad.slice(0, 3).map((p) => `${p.kind}: ${p.detail}`).join("; ")}`
+					: `actual 0, expected ${r.want}`
+			};
+		}
 		case "pageSize": {
 			const idx = spec.index ?? a.pageSizes.length - 1;
 			const ps = a.pageSizes[idx];
@@ -489,6 +518,14 @@ function manifest(base, cur) {
 	]);
 	lines.push(["header parts", arrow(base.headerText.length, cur.headerText.length)]);
 	lines.push(["footer parts", arrow(base.footerText.length, cur.footerText.length)]);
+	lines.push(["bookmarks", arrow(base.bookmarkScan.bookmarks.length, cur.bookmarkScan.bookmarks.length)]);
+	if (base.bookmarkScan.refs.length || cur.bookmarkScan.refs.length) {
+		lines.push(["references", arrow(base.bookmarkScan.refs.length, cur.bookmarkScan.refs.length)]);
+	}
+	if (cur.bookmarkScan.dangling.length) {
+		const show = cur.bookmarkScan.dangling.slice(0, 3).map((d) => `${d.refKind || "reference"} → "${d.name}"`).join("; ");
+		lines.push(["dangling refs", `${cur.bookmarkScan.dangling.length} — ${show}${cur.bookmarkScan.dangling.length > 3 ? " …" : ""}   ← a dead reference renders as text in Word`]);
+	}
 	for (let i = 0; i < cur.headerText.length; i++) {
 		const before = base.headerText[i];
 		if (before !== cur.headerText[i]) lines.push([`  header[${i}]`, before === undefined ? `(new) ${JSON.stringify(cur.headerText[i])}` : `${JSON.stringify(before)} → ${JSON.stringify(cur.headerText[i])}`]);
@@ -600,6 +637,7 @@ if (!quiet) {
 	console.log(`verify — ${fileAbs}`);
 	console.log(`  sections ${cur.sectionCount} · paragraphs ${cur.paragraphCount} · tables ${cur.tableCount} · images ${cur.imageCount}`);
 	console.log(`  header parts ${cur.headerText.length} · footer parts ${cur.footerText.length} · fields ${[...cur.fields].join(", ") || "(none)"}`);
+	console.log(`  bookmarks ${cur.bookmarkScan.bookmarks.length} · references ${cur.bookmarkScan.refs.length} · dangling ${cur.bookmarkScan.dangling.length}`);
 }
 
 if (base) {

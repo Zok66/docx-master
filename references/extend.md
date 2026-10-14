@@ -1,7 +1,7 @@
 # extend：OOXML 扩展通道
 
 `extend` 是 `apply` 之外的第二个写入器，专门负责**引擎刻意不写的那些特性**：
-分节符、域驱动的清单（目录 / 图表目录 / 索引）、脚注尾注部件、水印、页面装饰、
+分节符、命名书签、域驱动的清单（目录 / 图表目录 / 索引）、脚注尾注部件、水印、页面装饰、
 图形画布、图表、嵌入对象、自定义 XML、索引条目（XE）、内容控件（SDT）、
 原生引文与书目（sources.xml）、首字下沉、嵌套表格、自定义文档属性。
 
@@ -10,7 +10,7 @@
 | 需求 | 用谁 |
 |---|---|
 | 样式、编号、页面设置、页眉页脚、按位置改段落 / 表格单元格、插图 | **`apply`**（Node 引擎） |
-| 目录 / 图表目录 / 索引（含 XE 条目）、脚注尾注、水印、页面边框 / 背景、形状 / 连接线 / 画布 / 艺术字、图表、OLE、自定义 XML、SDT 内容控件、原生引文与书目、首字下沉、嵌套表格、自定义文档属性、任意 XML 片段定位插入 | **`extend`**（本 CLI） |
+| 目录 / 图表目录 / 索引（含 XE 条目）、命名书签、脚注尾注、水印、页面边框 / 背景、形状 / 连接线 / 画布 / 艺术字、图表、OLE、自定义 XML、SDT 内容控件、原生引文与书目、首字下沉、嵌套表格、自定义文档属性、任意 XML 片段定位插入 | **`extend`**（本 CLI） |
 
 `extend` 是**后处理**：先 `apply` 得到一份结构正确的文档，再 `extend` 往上面挂扩展内容。
 
@@ -42,6 +42,7 @@ python pro/scripts/validate.py out.docx
   "source": "in.docx",
   "output": "out.docx",
   "operations": [
+    { "op": "bookmark", "at": { "afterText": "第二章" }, "name": "chap2" },
     { "op": "watermark", "header": 1, "text": "内部资料", "color": "C8C8C8" },
     { "op": "toc", "at": { "paragraphIndex": 1 }, "levels": "1-3" },
     { "op": "footnote", "at": { "text": "脚注" }, "text": "脚注正文" },
@@ -72,6 +73,7 @@ python pro/scripts/validate.py out.docx
 | op | 必填 | 可选 | 产出 |
 |---|---|---|---|
 | `sectionBreak` | `at` | `kind`（`nextPage` / `continuous` / `evenPage` / `oddPage`）、`pgSz`、`pgMar`、`pgNum: [fmt, start]`、`columns: [num, space, sep]`、`textDirection`、`inheritHeaders`（默认 `true`） | 段落内嵌 `sectPr`，结束当前节并按声明开新节。**页眉/页脚引用、`titlePg`、`pgSz`/`pgMar`、`cols`、`docGrid` 默认从参考节继承**——`pgSz` 与 `pgMar` 各自独立继承，只声明其一不会让另一个掉回 Word 默认值；真要断开继承（如信封节不要页眉）写 `inheritHeaders: false` |
+| `bookmark` | `name` +（`at` 或 `from`/`to`） | `nth`、`mark: "point"` | 给段落或段落区间加**命名书签**（`w:bookmarkStart` / `w:bookmarkEnd` 包裹），`w:id` 自动取未占用的最小值。默认包裹锚点整段；写 `from` + `to` 则跨段包裹；`mark: "point"` 插零长度书签（只标位置）。这是 `refTo`、`{ "link": "#名字" }`、`PAGEREF`、`TOC \b 名字` 的**落点**——先建书签，再让别的东西引用它。名字须合法且唯一（字母 / 中文 / 数字 / 下划线，不以数字开头，≤40 字符）；重名直接报错，因为已有引用会变歧义 |
 | `toc` | `at` | `levels`（默认 `"1-3"`）、`hyperlinks`、`title`、`style`、`where`；`identifier` + `label` → 图表目录；`index: true` + `columns` → 索引 | TOC / TOC \o / INDEX 域 |
 | `field` | `at` + `instruction` | `placeholder`、`inline`、`where` | 任意域的 `fldChar` 序列（PAGE / NUMPAGES / REF / STYLEREF / DATE…）。`inline: true` 把域运行**追加进锚点段落内部**（邮件合并行内域、`MERGEFIELD` 用这个），不写则单独成段 |
 | `drawing` / `canvas` / `image` | `at` | 见下 | `w:drawing` 图形 |

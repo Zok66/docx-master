@@ -93,6 +93,29 @@ Anchor names live in a **flat namespace** across `edits[]` and source bookmarks.
 
 `anchor` on an insert with no current ref is still useful: the bookmark stays in the output for future apply runs to ref by name.
 
+### Creating an anchor — the three doors
+
+A name is useless until something defines it. Every way to define one:
+
+| Situation | How | Notes |
+|---|---|---|
+| Paragraph / equation / caption this same `edits[]` run emits | `"anchor": "name"` on the Block | Pre-scanned, so a `refTo` **earlier** in the array still resolves (forward refs work) |
+| A paragraph **already in the document** | `{ "op": "format", "at": {...}, "anchor": "name" }` | Single-paragraph target only — a bookmark names one paragraph. `anchor` can be the op's only field |
+| A range of paragraphs, or a zero-length position | `extend`: `{ "op": "bookmark", "name": "chap1", "from": {...}, "to": {...} }` | Also the only way to scope a `TOC \b name` to more than one paragraph |
+
+A `format` op's anchor is adopted at edit time, so a `refTo` in a **later** op resolves it; referencing it from an earlier op throws (no pre-scan for that path). Declare the anchor first, then the cite.
+
+`display: "number"` has a hard prerequisite: the target must be bound to a `numbering` level (`\n` / `\r` read the numbering binding), or be a caption-class target. A plain body paragraph has no number, and apply refuses rather than emitting a field that renders empty — use `display: "full"`.
+
+Before and after any bookmark work, check the package:
+
+```
+node scripts/inspect_bookmarks.js out.docx          # what exists, what points where
+node scripts/inspect_bookmarks.js out.docx --problems-only
+```
+
+It reports the dangling references and malformed bookmarks that nothing else in the toolchain can see, and exits non-zero when it finds one. Encode the same requirement permanently with `{ "type": "refsResolve" }` + `{ "type": "bookmarkProblems" }` in the verify config.
+
 ## First-open behavior and format verification
 
 The placeholder text between `<w:fldChar fldCharType="separate"/>` and `<w:fldChar fldCharType="end"/>` is pre-computed at apply time from the simulated numbering counters, so the document reads correctly even if the user dismisses Word's field-update prompt. `<w:updateFields w:val="true"/>` is set in `settings.xml`, so the prompt fires automatically on next open; manual `Ctrl+A` → `F9` updates after that.

@@ -125,6 +125,7 @@ All tools invoked via `node <script> <args>`, output to stdout.
 | `inspect_section` | `node scripts/inspect_section.js <file> <index>` | Page setup differences between sections. |
 | `inspect_table` | `node scripts/inspect_table.js <file>` | Top-level tables with `[row,col]` cell snippets and per-cell paragraph-index spans. Use before composing a `cell` locator or a `range` touching table content. |
 | `inspect_blockers` | `node scripts/inspect_blockers.js <file>` | Paragraphs `apply`'s edit phase will refuse — tracked changes, complex fields, SDT controls. |
+| `inspect_bookmarks` | `node scripts/inspect_bookmarks.js <file> [--json] [--problems-only]` | Bookmarks, every reference that names one (REF / PAGEREF / `HYPERLINK \l` / `TOC \b` / `w:anchor`), and the ones that resolve to nothing. Non-zero exit on a dangling reference or a malformed bookmark. |
 | `inspect_caption` | `node scripts/inspect_caption.js <file> [identifier]` | SEQ-based captions in the document. See [captions.md](references/captions.md). |
 | `migrate_captions` | `node scripts/migrate_captions.js <file> [--style <styleId>]...` | Read-only detector for manually-numbered caption-shaped paragraphs (`图 2.1` typed, no SEQ). Agent uses the output to write apply config converting them to `CaptionBlock`. |
 | `find_paragraphs` | `node scripts/find_paragraphs.js <file> --regex <pat> [--flags <flags>] [--limit N] [--fingerprint X]` | Cross-document paragraph regex. Validate `pattern_rules` coverage before applying. |
@@ -193,7 +194,8 @@ mechanically. Their whole purpose is the defect class no schema check can see:
 ```json
 { "type": "notContains", "text": "My Book", "scope": "footer" },
 { "type": "footerText", "regex": "^\\s*第\\s*<PAGE>\\s*页\\s*\\/\\s*共\\s*<NUMPAGES>\\s*页\\s*$" },
-{ "type": "hasField", "field": "TOC", "scope": "body" }
+{ "type": "hasField", "field": "TOC", "scope": "body" },
+{ "type": "refsResolve" }
 ```
 
 The first line exists because a footer carrying an unrequested title is
@@ -201,10 +203,19 @@ perfectly well-formed XML that passes every validator. `<PAGE>` is the field
 marker: cached field *results* are ignored, so assertions survive repagination
 and don't depend on what Word last computed.
 
+`refsResolve` covers the other invisible class: a REF / PAGEREF / `#anchor`
+pointing at a bookmark that no longer exists renders as plain text in Word
+("Error! Bookmark not defined." mid-sentence, a TOC entry that stops jumping)
+and satisfies every schema check on the way out. Pair it with `bookmarkProblems`
+(malformed bookmark ranges, duplicate ids) whenever the task creates or edits
+anchors.
+
 Types — counts (`sectionCount` / `paragraphCount` / `tableCount` / `imageCount`
 with `eq` / `ne` / `min` / `max`), presence (`contains` / `notContains` /
 `textMatches`, scoped `body` | `header` | `footer` | `all`), parts (`headerText` /
 `footerText` with `regex` / `equals` / `index`), fields (`hasField` / `noField`),
+bookmarks (`refsResolve` / `bookmarkProblems` / `bookmarkExists` /
+`bookmarkMissing` / `bookmarkCount` / `refCount`),
 setup (`pageSize` / `partExists`), styles (`styleExists` / `styleMissing` by
 `styleId` or `name`), metadata (`author` / `title`).
 
@@ -240,6 +251,8 @@ manifest shows something you cannot trace back to the user's words, delete it.
 - Restyle: run-level direct formatting uniform across all runs gets stripped; per-run differences preserved as intentional inline emphasis.
 - Field codes (`STYLEREF` / `TOC` / `REF` / `DATE` / …) preserved as-is; not editable inside. TOC content is not regenerated — user must right-click → "Update Field" in Word.
 - Edit blockers: the edit phase refuses paragraphs inside existing tracked changes / complex fields / SDT controls. Run `inspect_blockers` first. **Ordering rule that follows from it: content controls (SDT) are inserted LAST** — run every `edits[]` op first, then add SDTs (`extend` / raw fragments). An SDT placed before the edit phase silently blocks every later edit that targets paragraphs inside it.
+- **A bookmark has to exist before anything names it.** Three ways to create one, and only these: a Block's `anchor` (paragraphs / equations / captions this same run emits), the `format` op's `anchor` (a paragraph that is already on disk — the only way to anchor pre-existing content), and `extend`'s `bookmark` op (any paragraph, plus a `from`/`to` range). Then wire the reference: `refTo` → REF field, `{ "link": "#name" }` → in-page jump, `extend field` → any instruction that takes a name (`PAGEREF`, `TOC \b name`). `display: "number"` additionally requires the target to be bound to a `numbering` level — plain body text needs `display: "full"`.
+- **`_Toc*` / `_Ref*` / `_GoBack` bookmarks are Word's, not yours.** Word writes them when it updates a field — the TOC field ships *empty* by design ([`toc_field`](references/extend.md)), and the 70 `_Toc*` bookmarks + PAGEREF + HYPERLINK triplets that make TOC entries clickable appear only after Word recomputes. Never cite or hand-edit them; they are regenerated on every update. Treat a `_Toc*` reference whose bookmark is gone as a real defect — `inspect_bookmarks` and the `refsResolve` assertion catch exactly that.
 - Style-name preflight: before any mutation, the engine catches `<w:name>` collisions (including en/zh-CN locale aliases) and aborts with a fix hint; `--dry-run` lists collisions as warnings instead.
 - `settings.elements` is order-safe and duplicate-safe: each entry is merged into an existing element of the same name when one exists, otherwise inserted at the XSD-correct position from the authoritative 98-child order. `updateFields`, `evenAndOddHeaders`, etc. never appear twice. Repeatable children work too — declaring the same child name more than once (e.g. three `docVar`s inside `docVars`, or several `rsid`s) appends one node per declaration instead of collapsing them into a single node.
 - `docProps/core.xml` + `app.xml` are created or refreshed automatically (`docProps.enabled`, default on): title / creator / revision, plus `Words` / `Characters` / `Paragraphs` counted the way Word counts Chinese (CJK per character, Latin per word). These parts are what `NUMPAGES` / `NUMWORDS` / `AUTHOR` fields read.

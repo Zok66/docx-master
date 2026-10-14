@@ -6577,7 +6577,7 @@ function applyOne(edit, documentDoc, trackContext, emitCtx, stale, resolverCtx, 
 		case "insert-before": return applyInsertBefore(edit.target, edit.op.content, documentDoc, trackContext, emitCtx, resolverCtx);
 		case "insert-after": return applyInsertAfter(edit.target, edit.op.content, documentDoc, trackContext, emitCtx, resolverCtx);
 		case "delete": return applyDelete(edit.target, documentDoc, trackContext, stale);
-		case "format": return applyFormat(edit.target, edit.op, documentDoc, trackContext);
+		case "format": return applyFormat(edit.target, edit.op, documentDoc, trackContext, emitCtx);
 		case "set-run":
 			if (!edit.runRef) throw new Error("set-run: missing resolved run reference (internal)");
 			return applySetRun(edit.runRef, edit.op, documentDoc, trackContext);
@@ -6828,7 +6828,7 @@ const CLEAR_DIRECT_PPR_STRIP_SET = new Set([
 	"contextualSpacing",
 	"divId"
 ]);
-function applyFormat(target, op, documentDoc, trackContext) {
+function applyFormat(target, op, documentDoc, trackContext, emitCtx) {
 	if (target.paragraphs.length === 0) throw new Error("format op resolved to zero paragraphs — locator must select at least one");
 	const clear = op.clearDirect;
 	const shouldClearPPr = clear === "all" || Array.isArray(clear) && clear.includes("pPr");
@@ -6883,9 +6883,18 @@ function applyFormat(target, op, documentDoc, trackContext) {
 				for (const c of Array.from(getChildren(pPr))) if (c.namespaceURI === w$7 && PPR_MANAGED_LOCAL_NAMES.has(c.localName)) pPr.removeChild(c);
 				for (const c of buildPPrChildren(op.paraFormat, documentDoc)) insertChildInOrder(pPr, c, PPR_CHILD_ORDER);
 			}
-			attachPPrChange(pPr, snapshot, documentDoc, trackContext);
+				attachPPrChange(pPr, snapshot, documentDoc, trackContext);
 		}
 		touched++;
+	}
+	if (op.anchor !== void 0) {
+		// Attach a named bookmark to an EXISTING paragraph. Block-level `anchor`
+		// only covers paragraphs this same run creates; without this branch a
+		// document already on disk has no way to gain an anchor, so it can never
+		// be the target of a REF / `#jump` link added later.
+		if (target.paragraphs.length !== 1) throw new Error(`format: anchor "${op.anchor}" needs a single-paragraph target, got ${target.paragraphs.length} — a bookmark names one paragraph, and a paragraph carries at most one anchor. Narrow the locator, or split into one format op per paragraph.`);
+		if (!emitCtx?.adoptAnchor) throw new Error("format.anchor encountered but ctx.adoptAnchor was not provided by the engine");
+		emitCtx.adoptAnchor(op.anchor, target.paragraphs[0]);
 	}
 	return touched;
 }
@@ -12514,8 +12523,12 @@ const FormatOpSchema = strictObject({
 	styleId: optional(NonEmptyString),
 	runFormat: optional(RunFormatSchema),
 	paraFormat: optional(ParagraphFormatSchema),
-	clearDirect: optional(union([array(union([literal("pPr"), literal("rPr")])), literal("all")]))
-}).check(refine((op) => !!(op.styleId || op.runFormat || op.paraFormat || op.clearDirect), { error: "format op needs at least one of: styleId, runFormat, paraFormat, clearDirect" }));
+	clearDirect: optional(union([array(union([literal("pPr"), literal("rPr")])), literal("all")])),
+	// Names an already-existing paragraph so later ops (a REF, a `#jump` link)
+	// can address it. Block-level `anchor` only reaches paragraphs created in the
+	// same run; this is the only way to anchor a paragraph that is already on disk.
+	anchor: optional(AnchorNameSchema)
+}).check(refine((op) => !!(op.styleId || op.runFormat || op.paraFormat || op.clearDirect || op.anchor), { error: "format op needs at least one of: styleId, runFormat, paraFormat, clearDirect, anchor" }));
 const SetRunOpSchema = strictObject({
 	op: literal("set-run"),
 	at: RunLocatorSchema,

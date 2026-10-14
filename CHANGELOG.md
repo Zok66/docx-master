@@ -5,7 +5,71 @@
 
 ---
 
-## 2026-10-13（第六轮）—— 新增交付层：`pipeline` 编排 + `verify` 交付门 + `doctor` 探测
+## 2026-10-13（第七轮）—— 书签与交叉引用：补上"看不见的对象"这一层
+
+上一轮补的是"产出是否忠于用户原话"，这一轮补的是**同一性质空白的第二个实例**：书签没有任何渲染、
+不占字数、不带样式，丢一个之后文件照样打开、照样过 XSD，只有 Word 会在某句话中间印出
+"错误！未定义书签。"，或者目录条目点不动。整个工具链此前没有任何一处会去看它 ——
+`inspect_*` 里没有书签工具，`verify` 的断言类型里也没有书签项。本轮四处补齐。
+
+顺带核实了两件以前只能靠猜的事：**目录是域**（`TOC \o "1-3" \h \z`，结果为空，交给 Word 填），
+而目录条目的"可点击跳转"来自 Word 更新域时**自动生成**的 `_Toc*` 书签 + PAGEREF + HYPERLINK 三元组
+（实测一份 11 章文档生成 70 组）—— 不需要、也不应该手工埋这些书签。
+
+### 新增能力
+
+- **`scripts/_shared/bookmarks.js` —— 书签与引用分析核心（纯文本、零依赖）。**
+  以 `fldChar` 状态机（带栈）扫描部件的 XML，因此**能正确处理域嵌套**：Word 更新后的目录里每个条目都是一个
+  PAGEREF 域，嵌在 TOC 域内部，平坦正则会把这些指令全部算到外层域头上。识别 REF / PAGEREF / NOTEREF、
+  `HYPERLINK \l`、`TOC \b`、结构化 `w:hyperlink w:anchor`（STYLEREF 引的是样式名，不算引用）。
+  报告书签（名字 / id / 所在部件 / 段落序号 / 来源）、引用及其解析状态、以及六类问题：
+  `dangling`（引用不存在的名字）、`unclosed` / `unopened`（书签区间没闭合 / 游离的 bookmarkEnd）、
+  `duplicate-id` / `duplicate-name`、`empty-name` / `empty-target`。跨部件解析：页眉里的 REF 可以指向正文书签。
+  来源分类把 Word 自产的 `_Toc*` / `_Ref*` / `_GoBack` / `_Hlt` / `_OLE_LINK` 与**自己写的**锚点区分开。
+- **`scripts/inspect_bookmarks.js` —— 第 12 个侦察工具。**
+  `node scripts/inspect_bookmarks.js <file> [--json] [--problems-only] [--exit-zero] [--limit N]`；
+  输出书签清单、引用清单（按 kind + target 聚合，70 条 TOC 引用压成 70 行 ×2 而非 140 行）、问题清单；
+  **发现断开引用或畸形书签即 exit 1**，可直接接进 CI / 交付门。`--exit-zero` 只报告不改退出码。
+- **`scripts/_shared/opc.js` —— 共享 OPC 读取。**
+  原先 `verify.js` 内联了一份 ZIP 读取；两份实现迟早会漂移，抽成共享模块（`openZip` +
+  `referenceBearingParts` 部件枚举，含 rels 解析与常规命名兜底）。`verify.js` 改为引用它。
+
+### 新增写入能力（书签此前只能"读"不能"写到位"）
+
+- **`extend`：`{"op": "bookmark", "name": "chap1", ...}`。**
+  `at` 包裹锚点整段；`from` + `to` 跨段包裹（这也是把 `TOC \b 名字` 限定到多段的唯一办法）；
+  `mark: "point"` 插零长度书签。`w:id` 自动取未占用的最小值（同时扫描 bookmarkStart 与 bookmarkEnd，
+  复用游离 end 的 id 会被 Word 重新编号）。
+- **`apply`：`format` op 新增 `anchor` 字段。**
+  此前给段落挂锚点只有 Block 级 `anchor` 一条路，而它只能覆盖**本次运行新建**的段落 ——
+  文档里已经存在的段落永远拿不到锚点，也就永远不能被 REF / 跳转链接指向。现在
+  `{ "op": "format", "at": {...}, "anchor": "name" }` 可以只打锚点（可作为唯一字段），
+  多段目标直接报错（一个书签只能命名一个段落）。
+- 硬约束（本轮实测确认）：`InlineRef` 的 `display: "number"` 要求目标绑定过 `numbering`
+  （或属题注类目标），普通正文段落没有编号可引用，apply 拒绝而非写出渲染为空的域；改用 `display: "full"`。
+
+### 交付门扩展
+
+- **`verify` 新增六种断言**：`refsResolve`（所有引用都能解析，失败时逐条列出引用类型 + 名字 + 部件 + 段落）、
+  `bookmarkProblems`（默认要求 0 个畸形书签；`unclosed-field` 降级为提示，因为域跨部件开闭合法）、
+  `bookmarkExists` / `bookmarkMissing`（名字拼错时提示包里有多少书签、其中多少是自己写的）、
+  `bookmarkCount` / `refCount`（`eq`/`ne`/`min`/`max`）。
+- **变更清单新增**：`bookmarks` / `references` 增减行，以及**出现悬空引用时的显式警示行**
+  （"a dead reference renders as text in Word"）。
+- 默认报告新增一行：`bookmarks N · references N · dangling N`。
+
+### 修掉的缺陷
+
+- `w:id` 被复用时，先前那个尚未闭合的书签会从待闭合集合里被挤掉，导致 `unclosed` 不报。
+  现在重复 id 时把旧的转入 orphan 集合，收尾时同样报 unclosed（边界用例实测：注入 9 类缺陷全部命中）。
+
+### 边界（明确不做）
+
+- 不给**已有段落**跨段建书签（一次 `bookmark` op 只能覆盖一个连续区间，`from`/`to` 已覆盖该需求）。
+- 不管理 Word 自产的 `_Toc*` / `_Ref*`：它们由 Word 在每次更新域时重建，手工改动没有意义。
+- `PAGEREF`（页码交叉引用）不在 `apply` 的 `refTo` 范围内；需要页码引用时用 `extend` 的 `field` op 手写指令。
+
+
 
 缘起是一次真实的翻车。给一份 Word 笔记补页脚时，我把书名一起写进了页脚（用户只要求"页脚只保留页码"），
 而 **Node `validate.js` 与 PRO `validate.py` 全部 PASS** —— 因为 XML 完全合规。同一轮还有第二处失误：

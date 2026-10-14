@@ -14,6 +14,9 @@ Config shape:
       "source": "in.docx",
       "output": "out.docx",
       "operations": [
+        {"op": "bookmark", "at": {"afterText": "第二章"}, "name": "chap2"},
+        {"op": "bookmark", "name": "chap2-part2", "from": {"afterText": "2.1"},
+         "to": {"afterText": "2.4"}},
         {"op": "sectionBreak", "at": {"afterText": "第二章"}, "kind": "nextPage",
          "columns": [2, 425, true]},
         {"op": "watermark", "header": 1, "text": "内部资料", "color": "C8C8C8"},
@@ -177,6 +180,89 @@ def upsert_sectpr_child(sectpr, tag: str, xml_fragment: str):
 # --------------------------------------------------------------------------
 # Operations
 # --------------------------------------------------------------------------
+
+# Word's bookmark-name rules: ≤40 chars, no spaces, must not start with a digit.
+# CJK is allowed (Word accepts it; the limit is on characters, not bytes).
+BOOKMARK_NAME_RE = re.compile(r"^[A-Za-z_\u4e00-\u9fff][A-Za-z0-9_\u4e00-\u9fff]{0,39}$")
+
+
+def next_bookmark_id(root) -> int:
+    """Lowest `w:id` free across both bookmarkStarts and bookmarkEnds.
+
+    Word requires the id to be unique package-wide (a duplicate makes Word
+    renumber on open, and can pair a start with the wrong end). Scanning ends
+    too matters: a stray end holding an id would otherwise be reused.
+    """
+    used = set()
+    for tag in ("bookmarkStart", "bookmarkEnd"):
+        for el in root.iter(W(tag)):
+            raw = el.get(W("id"))
+            if raw is None:
+                continue
+            try:
+                used.add(int(raw))
+            except ValueError:
+                continue
+    i = 0
+    while i in used:
+        i += 1
+    return i
+
+
+def op_bookmark(pkg, root, spec):
+    """Wrap a paragraph — or a paragraph range — in a named bookmark.
+
+    Word's own bookmarks (`_Toc*`, `_Ref*`, `_GoBack`) are produced by the TOC /
+    REF machinery and rewritten on every field update. This op is for *authored*
+    anchors: the name a REF field cites, a `HYPERLINK \\l` jump lands on, or a
+    `TOC \\b` scope encloses. Nothing in a document points at a bookmark until
+    something is written that names it, so create the bookmark first, then add
+    the REF / link / field-scope that references it.
+    """
+    name = str(spec.get("name") or "").strip()
+    if not name:
+        raise AnchorError("bookmark needs a `name`")
+    if not BOOKMARK_NAME_RE.match(name):
+        raise AnchorError(
+            "bookmark name %r is not a legal Word bookmark name — letters / CJK / "
+            "digits / underscore, must not start with a digit, no spaces, max 40 chars" % name)
+    for el in root.iter(W("bookmarkStart")):
+        if el.get(W("name")) == name:
+            raise AnchorError(
+                "bookmark %r already exists — names must be unique, and a re-use would "
+                "make every existing reference ambiguous" % name)
+
+    spec_from = spec.get("from")
+    if spec_from is not None:
+        start_para = resolve_anchor(root, spec_from)
+        end_para = resolve_anchor(root, spec["to"]) if spec.get("to") is not None else start_para
+        paras = body_paragraphs(root)
+        if paras.index(end_para) < paras.index(start_para):
+            raise AnchorError("bookmark `from` anchor comes after its `to` anchor — swap them")
+    else:
+        start_para = end_para = resolve_anchor(root, spec.get("at") or spec, nth=spec.get("nth", 0))
+
+    bid = next_bookmark_id(root)
+    start_el = parse_fragment('<w:bookmarkStart w:id="%d" w:name="%s"/>' % (bid, esc(name)))[0]
+    end_el = parse_fragment('<w:bookmarkEnd w:id="%d"/>' % bid)[0]
+
+    point = spec.get("mark") == "point"
+    pPr = start_para.find(W("pPr"))
+    # bookmarkStart belongs with the paragraph content, after pPr — a start
+    # placed before pPr is still schema-valid but Word moves it on save.
+    if pPr is not None:
+        pPr.addnext(start_el)
+    else:
+        start_para.insert(0, start_el)
+    if point:
+        start_el.addnext(end_el)
+    else:
+        end_para.append(end_el)
+
+    where = "point" if point else (
+        "paragraph" if start_para is end_para else "paragraphs")
+    return "bookmark %r added (%s, w:id=%d)" % (name, where, bid)
+
 
 def op_section_break(pkg, root, spec):
     """Insert a paragraph carrying a sectPr, which ends the current section
@@ -902,6 +988,7 @@ def op_cover(pkg, root, spec):
 
 
 OPERATIONS = {
+    "bookmark": op_bookmark,
     "sectionBreak": op_section_break,
     "toc": op_toc,
     "field": op_field,
