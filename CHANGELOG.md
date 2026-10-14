@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-10-13（第十轮）—— 新建 `<w:pgMar/>` 漏写 XSD 必填属性
+
+- **触发**：给一个**没有 pgMar** 的节声明页边距——`pageSetup.sections."1".margins`，封面节是典型场景
+  （封面节由 `cover` op 建出，sectPr 里只有 `type` / `vAlign` / `titlePg`）。
+- **根因**：`mutatePgMar()` 新建 `<w:pgMar/>` 后只写入配置声明的字段，而 **`CT_PageMar` 的七个属性
+  （top / right / bottom / left / header / footer / gutter）全部是 required**。声明了六个、漏掉 `gutter`，
+  文档就在它刚创建的那个节点上失败：
+  `w:pgMar: The attribute 'w:gutter' is required but missing`。
+- **修法**：新增 `seedPgMarAttrs()`——新建 pgMar 时先把七个属性补齐：优先从文档里已有的 `pgMar` 继承
+  （新节沿用文档自身的页面几何），文档里没有 donor 时才用 Word 默认值
+  （1440 / 1800 / 1440 / 1800 / 851 / 992 / 0 twips）。
+- **实测**：同一份配置（**未**声明 `gutter`）修复前 `Validation FAILED — 2 new error(s)`，修复后
+  `Validation: PASS`；成品的 11 个节全部 7/7 必填齐全，新建节继承到文档自身的 `gutter=567` twips。
+- **同类排查**：`mutatePgSz()` 不受影响——它新建后立刻写 `w:w` / `w:h`（两者均为 required），
+  `orient` 本身可选。
+
+---
+
 ## 2026-10-13（第九轮）—— 缺陷修复：交付门误报、XSD 漏网、静默失效
 
 这一轮的每一条都来自一次**全能力演示文档**的实测（86 项元素逐项落地 + 双校验 + 43 条断言），

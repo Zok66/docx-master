@@ -8900,12 +8900,44 @@ const MARGIN_ATTR_KEYS = [
 		attr: "gutter"
 	}
 ];
+/** CT_PageMar makes **all seven** attributes required — top / right /
+*  bottom / left / header / footer / gutter. A brand-new <w:pgMar/> must
+*  therefore carry every one of them: seeding only the declared fields
+*  leaves the rest missing (typically `gutter`) and the run fails XSD on
+*  the very node it just created. Missing attributes are inherited from an
+*  existing pgMar in the same document — so a section created from scratch
+*  still keeps the document's own page geometry — and fall back to Word's
+*  defaults when the document has none. */
+const PGMAR_FALLBACK = {
+	top: 1440,
+	right: 1800,
+	bottom: 1440,
+	left: 1800,
+	header: 851,
+	footer: 992,
+	gutter: 0
+};
+function seedPgMarAttrs(pgMar, doc) {
+	const donors = doc.getElementsByTagNameNS(w$1, "pgMar");
+	for (const { attr } of MARGIN_ATTR_KEYS) {
+		const current = pgMar.getAttributeNS(w$1, attr);
+		if (current !== null && current !== "") continue;
+		let value = "";
+		for (const donor of donors) {
+			if (donor === pgMar) continue;
+			value = donor.getAttributeNS(w$1, attr) || "";
+			if (value) break;
+		}
+		pgMar.setAttributeNS(w$1, `w:${attr}`, value || String(PGMAR_FALLBACK[attr]));
+	}
+}
 function mutatePgMar(sectPr, margins, doc) {
 	if (!margins) return false;
 	let pgMar = firstChildNS(sectPr, w$1, "pgMar");
 	const fresh = !pgMar;
 	if (!pgMar) {
 		pgMar = doc.createElementNS(w$1, "w:pgMar");
+		seedPgMarAttrs(pgMar, doc);
 		insertChildInOrder(sectPr, pgMar, SECT_PR_CHILD_ORDER);
 	}
 	let changed = fresh;
