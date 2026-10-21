@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>docx-master 效果 demo · 在线预览</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.5/dist/docx-preview.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#30363d; --text:#e6edf3;
+    --muted:#8b949e; --accent:#bc8cff; --accent2:#f778ba;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  header{padding:28px 20px 16px;text-align:center;border-bottom:1px solid var(--line);
+    background:linear-gradient(135deg,rgba(188,140,255,.12),rgba(247,120,186,.10))}
+  header h1{margin:0 0 8px;font-size:22px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:0;color:var(--muted);font-size:13px}
+  header a{color:var(--accent);text-decoration:none}
+  .wrap{display:flex;min-height:calc(100vh - 118px)}
+  nav{width:280px;flex-shrink:0;border-right:1px solid var(--line);padding:16px 12px}
+  nav h2{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:4px 6px 10px}
+  .doc-btn{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
+    color:var(--text);border-radius:10px;padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:.15s}
+  .doc-btn:hover{border-color:var(--accent)}
+  .doc-btn.active{border-color:var(--accent);background:linear-gradient(135deg,rgba(188,140,255,.15),rgba(247,120,186,.10))}
+  .doc-btn b{display:block;font-size:14px;margin-bottom:4px}
+  .doc-btn span{font-size:12px;color:var(--muted)}
+  .doc-btn .dl{font-size:11px;color:var(--accent);margin-top:6px;display:inline-block}
+  main{flex:1;overflow:auto;padding:18px}
+  #stage{background:#fff;color:#222;border-radius:12px;min-height:60vh;box-shadow:0 0 0 1px var(--line)}
+  .tip{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:8px;padding:10px 14px;font-size:13px;color:var(--muted);margin-bottom:14px}
+  .loading{color:var(--muted);text-align:center;padding:60px 0}
+  @media(max-width:760px){.wrap{flex-direction:column}nav{width:100%;border-right:0;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>docx-master · 效果 demo 在线预览</h1>
+  <p>以下四份 <code>.docx</code> 全部由 <a href="https://github.com/Zok66/docx-master">docx-master</a> 技能生成 —— 由 <b>docx-preview</b> 在浏览器前端直接渲染，无服务器转换</p>
+</header>
+<div class="wrap">
+  <nav>
+    <h2>选择文档</h2>
+    <button class="doc-btn active" data-src="../demo/docx-master-demo.docx">
+      <b>综合能力全景</b><span>10 章 / 8 节 / 243 段：排版、目录、表格、插图题注、域、批量自动化</span>
+    </button>
+    <button class="doc-btn" data-src="../demo/docx-master能力演示-审阅版.docx">
+      <b>审阅版（修订 + 批注）</b><span>修订痕迹、批注锚点与 blocker 识别演示</span>
+    </button>
+    <button class="doc-btn" data-src="../demo/docx-master拼音注音演示.docx">
+      <b>拼音注音（w:ruby）</b><span>逐字注音的 OOXML 直写，适合语文教材 / 对外汉语排版</span>
+    </button>
+    <button class="doc-btn" data-src="../demo/docx-master新能力演示.docx">
+      <b>31 个格式字段</b><span>荧光笔 16 色、下划线 18 线型、边框底纹等第三十轮新能力</span>
+    </button>
+  </nav>
+  <main>
+    <div class="tip">💡 Word 里按 <b>Ctrl+A → F9</b> 可更新目录 / 交叉引用域；前端渲染不执行域刷新，域位置可能显示为生成时写入的占位内容。下载原文件用 Word 打开可获得完整效果。</div>
+    <div id="stage"><div class="loading">← 点击左侧任一文档开始预览</div></div>
+  </main>
+</div>
+<script>
+const stage = document.getElementById('stage');
+const btns = document.querySelectorAll('.doc-btn');
+async function load(src, btn){
+  btns.forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+  stage.innerHTML = '<div class="loading">正在渲染 ' + src.split('/').pop() + ' …</div>';
+  try{
+    const res = await fetch(src);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    stage.innerHTML = '';
+    await docx.renderAsync(blob, stage, null, {inWrapper:true, ignoreLastRenderedPageBreak:false});
+  }catch(e){
+    stage.innerHTML = '<div class="loading">渲染失败：' + e.message + '<br>可直接下载原文件用 Word 打开。</div>';
+  }
+}
+btns.forEach(b=>b.addEventListener('click', ()=>load(b.dataset.src, b)));
+load(btns[0].dataset.src, btns[0]);
+</script>
+</body>
+</html>
