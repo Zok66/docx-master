@@ -13,14 +13,14 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
-  header{padding:28px 20px 16px;text-align:center;border-bottom:1px solid var(--line);
+  header{padding:24px 20px 14px;text-align:center;border-bottom:1px solid var(--line);
     background:linear-gradient(135deg,rgba(188,140,255,.12),rgba(247,120,186,.10))}
   header h1{margin:0 0 8px;font-size:22px;
     background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
   header p{margin:0;color:var(--muted);font-size:13px}
   header a{color:var(--accent);text-decoration:none}
-  .wrap{display:flex;min-height:calc(100vh - 118px)}
-  nav{width:280px;flex-shrink:0;border-right:1px solid var(--line);padding:16px 12px}
+  .wrap{display:flex;min-height:calc(100vh - 108px)}
+  nav{width:300px;flex-shrink:0;border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column}
   nav h2{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:4px 6px 10px}
   .doc-btn{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
     color:var(--text);border-radius:10px;padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:.15s}
@@ -29,10 +29,17 @@
   .doc-btn b{display:block;font-size:14px;margin-bottom:4px}
   .doc-btn span{font-size:12px;color:var(--muted)}
   .doc-btn .dl{font-size:11px;color:var(--accent);margin-top:6px;display:inline-block}
-  main{flex:1;overflow:auto;padding:18px}
-  #stage{background:#fff;color:#222;border-radius:12px;min-height:60vh;box-shadow:0 0 0 1px var(--line)}
+  .mode{margin-top:auto;padding:12px 6px 4px;border-top:1px solid var(--line)}
+  .mode h2{margin:0 0 8px}
+  .mode label{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--muted);
+    padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:6px;border:1px solid transparent}
+  .mode label:has(input:checked){color:var(--text);border-color:var(--accent);background:rgba(188,140,255,.08)}
+  .mode input{margin-top:2px;accent-color:var(--accent)}
+  main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   .tip{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
-    border-radius:8px;padding:10px 14px;font-size:13px;color:var(--muted);margin-bottom:14px}
+    border-radius:8px;padding:8px 14px;font-size:12.5px;color:var(--muted);margin:12px 14px 10px;flex-shrink:0}
+  #stage{flex:1;overflow:auto;margin:0 14px 14px;background:#fff;color:#222;border-radius:12px;box-shadow:0 0 0 1px var(--line);position:relative}
+  #stage iframe{width:100%;height:100%;border:0;display:block}
   .loading{color:var(--muted);text-align:center;padding:60px 0}
   @media(max-width:760px){.wrap{flex-direction:column}nav{width:100%;border-right:0;border-bottom:1px solid var(--line)}}
 </style>
@@ -40,7 +47,7 @@
 <body>
 <header>
   <h1>docx-master · 效果 demo 在线预览</h1>
-  <p>以下四份 <code>.docx</code> 全部由 <a href="https://github.com/Zok66/docx-master">docx-master</a> 技能生成 —— 由 <b>docx-preview</b> 在浏览器前端直接渲染，无服务器转换</p>
+  <p>以下四份 <code>.docx</code> 全部由 <a href="https://github.com/Zok66/docx-master">docx-master</a> 技能生成，浏览器在线渲染，无本地依赖</p>
 </header>
 <div class="wrap">
   <nav>
@@ -57,18 +64,43 @@
     <button class="doc-btn" data-src="../demo/docx-master新能力演示.docx">
       <b>31 个格式字段</b><span>荧光笔 16 色、下划线 18 线型、边框底纹等第三十轮新能力</span>
     </button>
+    <div class="mode">
+      <h2>渲染引擎</h2>
+      <label><input type="radio" name="mode" value="office" checked>
+        <span><b style="font-size:13px">精确渲染（推荐）</b><br>微软 Office Online 与 Word 桌面版同一渲染引擎，1:1 还原分页、字体、表格</span></label>
+      <label><input type="radio" name="mode" value="docxpreview">
+        <span><b style="font-size:13px">轻量渲染</b><br>docx-preview 纯前端解析，秒开但为近似排版，域不刷新</span></label>
+    </div>
   </nav>
   <main>
-    <div class="tip">💡 Word 里按 <b>Ctrl+A → F9</b> 可更新目录 / 交叉引用域；前端渲染不执行域刷新，域位置可能显示为生成时写入的占位内容。下载原文件用 Word 打开可获得完整效果。</div>
+    <div class="tip" id="tip">当前为<b>精确渲染</b>：由微软 Office Online 服务加载文档（需文档公开可访问）。Word 里按 <b>Ctrl+A → F9</b> 可更新目录 / 交叉引用域。</div>
     <div id="stage"><div class="loading">← 点击左侧任一文档开始预览</div></div>
   </main>
 </div>
 <script>
 const stage = document.getElementById('stage');
+const tip = document.getElementById('tip');
 const btns = document.querySelectorAll('.doc-btn');
-async function load(src, btn){
-  btns.forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  stage.innerHTML = '<div class="loading">正在渲染 ' + src.split('/').pop() + ' …</div>';
+const RAW = 'https://raw.githubusercontent.com/Zok66/docx-master/main/';
+let current = null;
+
+function officeUrl(src){
+  const full = RAW + src.replace('../', '');
+  return 'https://view.officeapps.live.com/op/view.aspx?src=' + encodeURIComponent(full);
+}
+function render(){
+  if(!current) return;
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  if(mode === 'office'){
+    tip.innerHTML = '当前为<b>精确渲染</b>：微软 Office Online 与 Word 同款引擎，1:1 还原。若加载失败通常是该服务暂时不可用，可切换轻量渲染或下载原文件。';
+    stage.innerHTML = '<div class="loading">正在由 Office Online 加载 …</div><iframe src="' + officeUrl(current) + '"></iframe>';
+  }else{
+    tip.innerHTML = '当前为<b>轻量渲染</b>（docx-preview）：秒开但为近似排版，不执行域刷新（Word 里 Ctrl+A → F9 可更新）。';
+    renderDocxPreview(current);
+  }
+}
+async function renderDocxPreview(src){
+  stage.innerHTML = '<div class="loading">正在渲染 …</div>';
   try{
     const res = await fetch(src);
     if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -76,11 +108,17 @@ async function load(src, btn){
     stage.innerHTML = '';
     await docx.renderAsync(blob, stage, null, {inWrapper:true, ignoreLastRenderedPageBreak:false});
   }catch(e){
-    stage.innerHTML = '<div class="loading">渲染失败：' + e.message + '<br>可直接下载原文件用 Word 打开。</div>';
+    stage.innerHTML = '<div class="loading">渲染失败：' + e.message + '</div>';
   }
 }
-btns.forEach(b=>b.addEventListener('click', ()=>load(b.dataset.src, b)));
-load(btns[0].dataset.src, btns[0]);
+function select(btn){
+  btns.forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+  current = btn.dataset.src;
+  render();
+}
+btns.forEach(b=>b.addEventListener('click', ()=>select(b)));
+document.querySelectorAll('input[name=mode]').forEach(r=>r.addEventListener('change', render));
+select(btns[0]);
 </script>
 </body>
 </html>
