@@ -25,6 +25,28 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 
 > 🤖 **AI / developers: read [SKILL.md](SKILL.md) first** (main flow, hard rules, routing index) — don't scan the whole repo first.
 
+**Author**: Zoros ([Zok66](https://github.com/Zok66)) · MIT-licensed, free to use / modify / sell commercially (just keep the copyright notice)
+
+## Highlights
+
+- **Original file is never modified** — every write command produces a new copy, auto-validated twice before landing (Node schema + XSD/OPC)
+- **Full generate · read · edit · validate chain, zero npm dependencies** — main chain uses only the Node standard library + Python lxml
+- **Normalize**: turns hand-typed `一、`/`1.1` prefixes into real multi-level auto-numbering and reshapes typography by role
+- **Ready for theses / lab reports**: TOC fields, page numbering, headers & footers, footnotes, captions, cross-references, citations & bibliography
+- **Delivery gate**: declarative assertions (failure exits 1, **blocking delivery**) + change manifest — catches changes that are schema-perfect but never requested
+- **Invisible objects get a dedicated guard**: dangling bookmarks / broken references print "Error! Bookmark not defined." in Word while XSD stays green — `inspect_bookmarks` + `refsResolve` see them
+- **Batch mail-merge**: one template × one CSV → N documents (a replacement for Word mail-merge)
+- **One command for the whole chain**: `pipeline` aborts on first failure — no half-done intermediates
+- **AI-friendly**: `SKILL.md` master entry + single-source-of-truth rule contracts, guarded by regression tests
+
+## Privacy & Security
+
+- **Documents are processed entirely locally** — nothing is uploaded to any cloud conversion service
+- **Macros / OLE payloads inside documents are never executed**; no network access (`doctor` only probes locally installed tools)
+- The original file stays untouched: every write command produces a new file
+- When processing **untrusted** docx files, run in an isolated environment (same common sense as opening unknown Word documents)
+- Report vulnerabilities privately — see [SECURITY.md](SECURITY.md)
+
 No Microsoft Word dependency, no LibreOffice dependency, no npm `docx` package. Unzip the `.docx`,
 edit the XML inside, zip it back — so it can do far more than "what a library API can wrap":
 paragraph-level restyling, multi-level auto-numbering, TOC fields, footnotes & endnotes, page borders,
