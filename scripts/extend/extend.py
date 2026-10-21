@@ -1144,24 +1144,31 @@ OPERATIONS = {
     "field": op_field,
     "footnote": op_note,
     "endnote": op_note,
-    "watermark": op_watermark,
     "pageProperty": op_page_property,
     "pageBackground": op_page_background,
-    "drawing": op_drawing,
-    "canvas": op_canvas,
     "image": op_image,
-    "chart": op_chart,
-    "ole": op_ole,
-    "customXml": op_custom_xml,
     "xe": op_xe,
     "sdt": op_sdt,
     "source": op_source,
     "dropCap": op_drop_cap,
     "nestedTable": op_nested_table,
     "customProps": op_custom_props,
-    "glossary": op_glossary,
     "cover": op_cover,
-    "smartArt": op_smart_art,
+}
+
+# 标准版（standard）保留日常办公 / 论文 / 实训报告所需的全部基础能力。
+# 以下 op 仅在 pro 版提供，见 `git checkout pro` 或 README「两个版本」：
+#   watermark（水印）、drawing / canvas / smartArt（形状、文本框、画布、智能图形）、
+#   chart（图表）、ole（OLE 嵌入）、glossary（构建基块）、customXml（自定义 XML）
+UNSUPPORTED_OPS = {
+    "watermark": "watermark（水印）",
+    "drawing": "drawing（形状 / 文本框）",
+    "canvas": "canvas（绘图画布）",
+    "smartArt": "smartArt（智能图形）",
+    "chart": "chart（图表）",
+    "ole": "ole（OLE 嵌入）",
+    "glossary": "glossary（构建基块）",
+    "customXml": "customXml（自定义 XML）",
 }
 
 
@@ -1185,6 +1192,13 @@ def run(config_path: str, dry_run: bool = False) -> int:
             name = spec.get("op")
             handler = OPERATIONS.get(name)
             if handler is None:
+                if name in UNSUPPORTED_OPS:
+                    raise SystemExit(
+                        "operations[%d]: %r 仅在 pro 版提供（标准版不含 %s）。"
+                        "完整功能版：git checkout pro 或见 README「两个版本」；"
+                        "标准版可用操作：%s"
+                        % (i, name, UNSUPPORTED_OPS[name],
+                           ", ".join(sorted(OPERATIONS))))
                 raise SystemExit("unknown operation %r (known: %s)"
                                  % (name, ", ".join(sorted(OPERATIONS))))
             try:

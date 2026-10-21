@@ -1,6 +1,6 @@
 ---
 name: docx-master
-description: "Standardize, restyle, edit, or audit Word (.docx / .dotx) documents by mutating OOXML directly — semantic styles + multi-level numbering, template import, content insertion (paragraphs / tables / images / equations), captions & cross-references, headers / footers, page setup, comments (批注), tracked changes, footnotes, TOC / watermarks / shapes / charts via `extend`, batch mail-merge, and a delivery gate (`pipeline` / `verify` / `doctor`). Use for any format / normalize / restyle / edit / audit / generate-a-Word-document task. Also: legacy `.doc` → `.docx` conversion and page rendering for visual checks. Do NOT use for PDFs, spreadsheets, or plain-text / Markdown sources (unless the task is specifically to *output* a docx)."
+description: "Standardize, restyle, edit, or audit Word (.docx / .dotx) documents by mutating OOXML directly — semantic styles + multi-level numbering, template import, content insertion (paragraphs / tables / images / equations), captions & cross-references, headers / footers, page setup and numbering, comments (批注), tracked changes, footnotes, TOC / index fields via `extend`, batch mail-merge, delivery gate (`pipeline` / `verify` / `doctor`). Use for everyday office work, theses, lab reports. Also: legacy `.doc` → `.docx` and render-to-image checks. Watermarks, shapes, charts, OLE, SmartArt need the pro branch. Do NOT use for PDFs, spreadsheets, or plain-text / Markdown sources (unless the task is specifically to *output* a docx)."
 ---
 
 # docx-master
@@ -44,7 +44,7 @@ Structure comes from **styles + numbering + sections + SEQ fields**, not typed t
 
 - **`apply`** — the unified writer: install styles + numbering + theme + template, restyle by pattern / fingerprint, insert content via edits. One config, one call. → [standardize.md](references/standardize.md) + [edit.md](references/edit.md)
 - `audit` — read-only conformance check: no CLI, uses the inspect tools to produce a violation report. → [audit.md](references/audit.md)
-- **`extend`** — post-processing for what the engine deliberately does not write: TOC / table-of-figures / index fields, footnotes & endnotes, watermarks, page borders, shapes / text boxes / canvas / WordArt / diagrams, charts, OLE, glossary, cover pages, custom XML. → [extend.md](references/extend.md)
+- **`extend`** — for what the engine deliberately does not write: TOC / table-of-figures / index fields, page & section breaks, page numbering, footnotes & endnotes, page borders & background, images, content controls, cover pages, citations. → [extend.md](references/extend.md)
 - **`pipeline`** — one-command rebuild of a multi-step chain (config source → `apply` → `extend` → validate → verify); aborts on first failure, auto-validates the deliverable, `--plan` / `--emit-script` when child processes are forbidden. → [delivery-gate.md](references/delivery-gate.md)
 - **`verify`** — the delivery gate: declarative assertions (exit 1 on failure) + change manifest vs. a baseline. → [delivery-gate.md](references/delivery-gate.md)
 - `doctor` — environment capability probe; run first on an unfamiliar machine. → [delivery-gate.md](references/delivery-gate.md)
@@ -61,7 +61,7 @@ merge runs (pre-pass — only when `mergeRuns: true` / `--merge-runs`)
   → validate, write
 ```
 
-Need fields / notes / watermarks / drawings / charts? Run `extend` on `apply`'s output — the two are complementary, not alternatives. It re-declares root namespaces per part, keeps rendering namespaces (`wps` / `wpg` / `wpc`) out of `mc:Ignorable`, and handles ordering + part registration ([element-order.md](references/element-order.md), [ooxml-extension-points.md](references/ooxml-extension-points.md)).
+Need fields / notes / page numbers / images? Run `extend` on `apply`'s output — the two are complementary, not alternatives. It re-declares root namespaces per part, keeps rendering namespaces (`wps` / `wpg` / `wpc`) out of `mc:Ignorable`, and handles ordering + part registration ([element-order.md](references/element-order.md), [ooxml-extension-points.md](references/ooxml-extension-points.md)).
 
 Sparse by design — only declared blocks apply; untouched styles / numbering / paragraphs / theme stay as they are. **Declare only what's wrong, missing, or what the user explicitly asks to change.**
 
@@ -88,7 +88,7 @@ Default: don't ask. Ask only for — typed sentinel mid-prose vs. heading · bol
 
 **Supported, despite appearances:** footnote / endnote *bodies* via `extend` (`{"op": "footnote"}` / `"endnote"}` creates part + rel + id; only *indexing* is absent — notes live in `word/footnotes.xml` / `word/endnotes.xml`); comments via PRO `comment.py`; page setup + headers / footers incl. per-section overrides ([extend.md](references/extend.md), [config-schema.md §page setup](references/config-schema.md#page-setup), [header-footer.md](references/header-footer.md)).
 
-**Not attempted (binary part / external app):** `.dotx` · real SmartArt (`dgm`) · ActiveX · InkML · macros · envelope / label layouts · PDF/XPS · translation / dictation → [out-of-scope.md](references/out-of-scope.md).
+**Not attempted (binary part / external app):** `.dotx` · SmartArt / charts / shapes / OLE (pro-only) · ActiveX · InkML · macros · envelope / label layouts · PDF/XPS · translation / dictation → [out-of-scope.md](references/out-of-scope.md).
 
 ## Tool index
 
@@ -149,5 +149,4 @@ Block-level config details: [standardize.md](references/standardize.md), [edit.m
 - **Workflows** (audit / standardize / edit) → [audit.md](references/audit.md), [standardize.md](references/standardize.md), [edit.md](references/edit.md)
 - **Delivery gate** (assertions / manifest / handover checklist) → [delivery-gate.md](references/delivery-gate.md) · **Engine auto-behavior** → [engine-behavior.md](references/engine-behavior.md)
 - **Domain knowledge** → [numbering-formats.md](references/numbering-formats.md), [captions.md](references/captions.md), [tables.md](references/tables.md), [equations.md](references/equations.md), [cross-references.md](references/cross-references.md), [header-footer.md](references/header-footer.md), [chinese-font-sizes.md](references/chinese-font-sizes.md)
-- **PRO toolchain** → [pro-toolchain.md](references/pro-toolchain.md) · **OOXML extension channel** → [extend.md](references/extend.md)
-- **Element order** → [element-order.md](references/element-order.md) · **Extension points** → [ooxml-extension-points.md](references/ooxml-extension-points.md) · **What changed** → [CHANGELOG.md](CHANGELOG.md)
+- **PRO toolchain** → [pro-toolchain.md](references/pro-toolchain.md) · **pro-only ops**（水印/形状/图表/OLE/智能图形）→ [pro-only-ops.md](references/pro-only-ops.md) · **Element order** → [element-order.md](references/element-order.md) · **Extension points** → [ooxml-extension-points.md](references/ooxml-extension-points.md) · **Changes** → [CHANGELOG](CHANGELOG.md)

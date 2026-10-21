@@ -78,17 +78,15 @@ python pro/scripts/validate.py out.docx
 | `bookmark` | `name` +（`at` 或 `from`/`to`） | `nth`、`mark: "point"` | 给段落或段落区间加**命名书签**（`w:bookmarkStart` / `w:bookmarkEnd` 包裹），`w:id` 自动取未占用的最小值。默认包裹锚点整段；写 `from` + `to` 则跨段包裹；`mark: "point"` 插零长度书签（只标位置）。这是 `refTo`、`{ "link": "#名字" }`、`PAGEREF`、`TOC \b 名字` 的**落点**——先建书签，再让别的东西引用它。名字须合法且唯一（字母 / 中文 / 数字 / 下划线，不以数字开头，≤40 字符）；重名直接报错，因为已有引用会变歧义 |
 | `toc` | `at` | `levels`（默认 `"1-3"`）、`hyperlinks`、`title`、`style`、`where`；`identifier` + `label` → 图表目录；`index: true` + `columns` → 索引 | TOC / TOC \o / INDEX 域 |
 | `field` | `at` + `instruction` | `placeholder`、`inline`、`where` | 任意域的 `fldChar` 序列（PAGE / NUMPAGES / REF / STYLEREF / DATE…）。`inline: true` 把域运行**追加进锚点段落内部**（邮件合并行内域、`MERGEFIELD` 用这个），不写则单独成段 |
-| `drawing` / `canvas` / `image` | `at` | 见下 | `w:drawing` 图形 |
+| `image` | `at` | 见下 | `w:drawing` 图形 |
 
 ### 内容类
 
 | op | 必填 | 可选 | 产出 |
 |---|---|---|---|
 | `footnote` / `endnote` | `at`、`text` | `kind` | 引用运行 + `footnotes.xml` / `endnotes.xml` 条目（自动补齐 id 与分隔符） |
-| `watermark` | — | `header`（默认 1）、`text`、`color`、`font`、`rotation`（默认 315）、`opacity` | 页眉里的 VML 水印（`w:pict` + `v:textpath`） |
 | `pageProperty` | — | `sections`（`"all"` / `"1"` / `"1,3"`）、`borders`、`pgNum: [fmt, start]`、`columns`、`textDirection` | 就地更新目标节的 `sectPr` 子元素（同名替换，不追加） |
 | `pageBackground` | `color` | `drawing: true` | `w:background` 或背景图形 |
-| `customXml` | — | `fields: {}`、`root`（默认 `project`） | `customXml/itemN.xml` + `itemPropsN.xml` + 关系与内容类型 |
 | `xe` | `term` | `at`（不填则追加到最后一段） | 隐藏 `XE "term"` 域标记（`w:vanish`），配合 `index: true` 的 INDEX 域，F9 生成真索引 |
 | `sdt` | `text` | `alias`、`tag`、`style`（默认 `BodyText`）、`at`、`dropdown: [{displayText, value}]`（写了就出下拉列表，`text` 作为当前值）、`docPartGallery`（合法值 = CT_DocPartGallery 枚举，如 `docParts` / `coverPg`，写成 `docPartObj` 内容控件 + `docPartUnique`；与 `dropdown` 互斥——同一 CT_SdtPr choice 的两个分支） | 块级富文本内容控件（`w:sdt` + `sdtPr` 的 alias/tag/id，可选 `w:dropDownList` 或 `w:docPartObj`）。**必须最后插**——SDT 会阻塞 `apply` 的编辑阶段 |
 | `source` | `tag`、`sourceType`（别名 `type`）、`fields`、`authors`、`citeAt`（别名 `cite: {at, text}`，`text` 作域占位文本） | — | 原生引文/书目：登记 `word/sources.xml`（shared-bibliography.xsd）+ 就地插 `CITATION tag \m` 域。配合 `field` op 插 `BIBLIOGRAPHY` 域，F9 生成完整书目。字段名按 XSD：`Issue`（非 Number）、`StateProvince`、`CountryRegion`。**作者分两类走不同的层**：人名 `{"last": "张", "first": "三"}`（或 ≤4 字字符串）→ `<b:NameList><b:Person>`；机构名（`{"corporate": "ISO/IEC JTC 1"}` 或 >4 字字符串）→ CT_AuthorType 直系的 `<b:Corporate>`——`CT_PersonType` 没有 Corporate 子元素，写进去 XSD 会拒。两类可混写 |
@@ -98,21 +96,18 @@ python pro/scripts/validate.py out.docx
 | `dropCap` | `at` | `lines`（默认 2）、`kind`（`drop` / `margin`）、`size`（首字字号，如 `"21pt"`） | 首字下沉：段落 `pPr` 写入 `framePr`，并把首字符拆成放大的独立 run（默认 21pt / 42 half-points） |
 | `nestedTable` | `at: {cellText}`（可加 `nth`） | `rows`（二维数组，必填）、`widths`（每列 twips）、`borderColor`、`headerFill`、`headerBold` | 向匹配文本的**表格单元格**内嵌子表。插在单元格最后一个段落之前，保证 `w:tc` 以 `w:p` 结尾的规范不变量。注意 `at` 用 `cellText`（搜全部单元格），不是普通段落锚点 |
 | `customProps` | `properties: {}` | — | `docProps/custom.xml` 自定义文档属性（文件 → 信息 → 属性 → 高级属性可见）。值为 str/bool/int/float 自动映射 `vt:lpwstr/bool/i4/r8`；登记根 rels 与 content type，重复运行 upsert 幂等 |
-| `glossary` | `entries: [{name, paragraphs\|xml}]` | 每条目 `gallery`（默认 `autoTxt`）、`category`（默认 `General`）、`autoInsert`（打字自动插入） | `word/glossary/document.xml` 构建基块部件（自动图文集）。条目出现在 Word「插入 → 部件 → 构建基块管理器」对应 gallery 下。`paragraphs` 项为纯文本或排版对象 `{text, style?, align?, bold?, italic?, size?(pt), color?(hex), font?, before?/after?(cm/mm/pt/in), pageBreakBefore?}` —— align/bold/size/color/before/after 足以把 `coverPg` 封面模板做出真实封面的版式（居中大标题 + 作者信息 + 分页）；重复运行追加条目。gallery 取值 = CT_DocPartGallery 枚举（`autoTxt` / `coverPg` / `tbls` / `pgNum` / `hdrs` / `ftrs` / `watermarks` / `txtBox` / `docParts` / `eq` / `bib` / `tblOfContents` / `custom1-5` …37 值，非法值 XSD 拒收） |
 | `cover` | `title` | `subtitle: []`、`titleStyle`（默认 `Title`）、`subtitleStyle`（默认 `Subtitle`）、`firstPageDifferent`（默认 true） | 封面页：把标题 + 副标题段落插到正文最前，并追加一个 `vAlign=center` + `titlePg` 的分节符——封面节垂直居中、首页页眉页脚自动留空（未声明首页页眉时）。样式需已存在（apply 默认样式集含 Title / Subtitle） |
 
 `borders` 的键直接透传给 `pg_borders()`：`val` / `sz` / `space` / `color` / `offset_from`。
 
 ### 图形类字段
 
+标准版只提供 **嵌入式图片**（`image`）。形状 / 文本框 / 画布 / 智能图形、图表、OLE 嵌入、
+水印、构建基块、自定义 XML 属于 **pro 独有**，见 [pro-only-ops.md](pro-only-ops.md)。
+
 | op | 关键字段 |
 |---|---|
-| `drawing` | `shape`（预设几何名，默认 `roundRect`）、`text`、`fill`、`line`、`warp`（艺术字变形）、`width` / `height`（厘米）、`anchor`（`t`/`ctr`/`b`）、`insets: [l,t,r,b]`（EMU）、`paragraphs: [{text,size,bold,italic,color,font,align}]`（多段落富文本）、`name`；`symbols` → 符号段落（`[[字体, 码位], …]`，码位可写十六进制 `"2192"`、`U+2192`、十进制数字或**字符本身** `"→"`，一律规范化为 `ST_ShortHexNumber`）；`ink` → 手写墨迹；`connector: true` → 直线连接线 `straightConnector1`（配合 `flipV` / `flipH`（别名 `flipVertical` / `flipHorizontal`）/ `line` / `arrow: true`）；**`textBox: true` → 真文本框**（`wps:cNvSpPr txBox="1"`，默认无填充/无边框，配 `paragraphs` 多段落、`insets` 内边距、`anchor` 垂直锚点、`wrapText` 自动换行、`rotation`（度）） |
-| `canvas` | `children: [{"text": "...", "x": 0.2, "y": 0.9, "width": 3.0, "height": 1.3, "shape": "roundRect", "fill": "...", "textColor": "...", "size": 18}]`（**`x`/`y` 为画布内厘米坐标**，缺省即左上角）、画布 `width` / `height`、`name` |
-| `smartArt` | `kind`（`process` 水平流程 / `cycle` 环形 / `list` 垂直列表 / `hierarchy` 树形）、`nodes: [str \| {text}]`、`width` / `height`、`fill` / `line` / `textColor` / `font` / `size` / `arrow`、`name`。自动计算节点尺寸与连线并置于 `wpc` 画布内（可整体缩放/移动，文字可编辑） |
 | `image` | `part`（包内已有部件，如 `word/media/image1.png`）**或** `file`（本地图片路径，自动写入 `word/media/` 并登记内容类型）、`rid`（不填则自动登记关系）、`crop: [l,t,r,b]`、`lum: [bright, contrast]`、`effects`（`a:effectLst` 内容，可含外层包装；子元素会按 `blur → fillOverlay → glow → innerShdw → outerShdw → prstShdw → reflection → softEdge` 的 XSD 顺序自动重排）、`floating: true` + `wrapText`（`square` 四周型 / `tight` 默认 / `bothSides` / `left` / `right` / `largest`）+ 定位 `offsetX` / `offsetY`（厘米，相对锚点行）与 `allowOverlap`（默认 `true`）、`behindDoc`。**浮动图慎用**：锚点定位默认偏移 0，同段落锚多个浮动对象会精确重叠；`wrapText: "square"` 还会挤占栏宽，使同页后续更宽的**嵌入式**图形被推出右页边距。版式关键的图一律用嵌入式（不写 `floating`），浮动只留给刻意的文字环绕效果 |
-| `chart` | `rows`（工作表数据）、`categories`、`series`、`title`、`kind`（默认 `bar`）、`name`、`width` / `height` |
-| `ole` | `rows`（载荷工作簿）、`stream`（默认 `Package`）、`progId`、`name`、`previewPart`（包内已有媒体部件）**或** `previewFile`（本地图片，自动入库）；两者都缺或指向不存在的部件会直接报错，不会留下悬空关系 |
 
 ## 它替你处理了什么
 

@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-10-20（v0.16.0）—— 版本拆分：标准版 / pro 版
+
+按使用场景拆成两版，**同一仓库、两个分支**：`main` = 标准版（默认），`pro` = 全功能版。
+
+### 标准版边界
+
+面向**日常办公 / 论文 / 实训报告**：生成编辑规范化、读取侦察、页数分页页码目录、
+页眉页脚、脚注尾注、题注交叉引用、嵌入式插图、批注修订、批量套打、交付门、封面页、引文书目。
+
+### 剥离到 pro 的 8 个 op
+
+`watermark`（水印）· `drawing`（形状 / 文本框 / 艺术字 / 连接线 / 墨迹 / 符号）·
+`canvas`（绘图画布）· `smartArt`（智能图形）· `chart`（图表）· `ole`（OLE 嵌入）·
+`glossary`（构建基块 / 自动图文集）· `customXml`（自定义 XML）。
+
+- `OPERATIONS` 注册表从 24 项收敛到 16 项，函数体保留（pro 分支合并零冲突）
+- 新增 `UNSUPPORTED_OPS` 映射：调用被剥离的 op 时**明确报错**并列出标准版可用操作，
+  不静默降级 —— `operations[0]: 'watermark' 仅在 pro 版提供 …`
+- 文档同步：新增 `references/pro-only-ops.md`；`references/extend.md` 操作表移除 8 项、
+  图形类只留 `image`；`SKILL.md` frontmatter / `extend` 条目 / Out of scope 三处改写；
+  README 增加「两个版本」对比表与切换命令
+
+### 回归
+
+`node tests/run.mjs` → **PASS 94/94**（含 SKILL.md 体积 ≤ 20000 B 硬约束）。
+实测：水印被拒并给出 16 项可用操作；`footnote` / `toc` 正常产出（parts 8 / 7）。
+
+---
+
 ## 2026-10-14（第十三轮）—— run / 段落级格式扩展 + 拼音注音正式纳入引擎
 
 用户对照 Word 字体 / 段落对话框逐项盘点后的能力补齐。
