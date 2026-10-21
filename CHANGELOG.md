@@ -140,6 +140,12 @@ Node `validate.js` PASS，PRO `validate.py`（XSD + OPC）PASS。
 （XSD）PASS。封面插入使段落索引整体 +8，`stage4-revisions.json` 的三处 `paragraph.index`
 锚点已同步重定位（185/188/192 → 193/196/200）。
 
+### 视觉渲染验证新增 WPS COM 通道
+
+此前 out-of-scope 判定"无 soffice 即无法渲染核对"；实测 WPS COM 自动化可行：
+`KWPS.Application` 转 PDF + PyMuPDF 出图，注意事项含 `ReadOnly` 打开 /
+`DispatchEx` 独立进程 / `finally Quit` 释放。详见 `references/out-of-scope.md`。
+
 ---
 
 ## 2026-10-13（第十轮）—— 新建 `<w:pgMar/>` 漏写 XSD 必填属性

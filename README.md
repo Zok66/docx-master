@@ -8,6 +8,33 @@
 
 原文件永不被修改：每个写盘命令都产出新文件，且在写入前跑校验。
 
+## 版本
+
+- **当前版本：[v0.15.0](https://github.com/Zok66/docx-master/releases/tag/v0.15.0)**（2026-10-14，第十五轮）。
+- **升级**：技能目录内 `git pull` 覆盖安装即可；升级前建议跑一遍 `node tests/run.mjs` 确认环境契约完好。
+- **本次下载**：以 [Releases](https://github.com/Zok66/docx-master/releases) 页 Latest 为准，每个版本附能力清单与验收记录。
+- **历史版本**：[Releases](https://github.com/Zok66/docx-master/releases)。
+
+本版（v0.15.0）与旧版对比：
+
+| 以前发布的版本 | 本版主要增加 |
+|---|---|
+| v0.14 / 第十三~十四轮 | run / 段落级格式扩展 31 字段 + 拼音注音（`w:ruby`）纳入引擎；批注锚点丢失、extend 自闭合 `<w:t/>`、批注断言缺位三个缺陷修复 |
+| v0.13 / 第十~十二轮 | WPS「插入」选项卡对齐：docPartObj 内容控件 + glossary 封面模板排版；`pgMar` XSD 必填属性修复 |
+| 第十轮及更早 | 交付门误报 / XSD 漏网 / 静默失效修复、skill 结构重构（主控瘦身、规则可测）、书签与交叉引用、`batch_fill` 批量套打 |
+
+完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+
+## 文档索引
+
+| 文档 | 内容 |
+|---|---|
+| [`SKILL.md`](SKILL.md) | 技能主入口 —— 主流程、硬规则、路由索引（AI 触发即读） |
+| [`CHANGELOG.md`](CHANGELOG.md) | 完整更新记录（能力与行为变更，逐轮可检索） |
+| [`tests/README.md`](tests/README.md) | 回归测试怎么跑、怎么加规则 / 用例 |
+| [`references/`](references/) | 领域参考：配置 schema、定位器契约、工具全表、编号格式、题注、公式 … |
+| [`pro/`](pro/) | 可选 Python 工具链：批注、接受修订、渲染、XSD 校验 |
+
 ## 能力一览
 
 | 动作 | 说明 |
