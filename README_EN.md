@@ -250,38 +250,14 @@ node $SK/scripts/batch_fill.js contract-template.docx clients.csv \
 
 ## Development conventions
 
-### Commit convention (Conventional Commits)
+### Commit messages
 
-Every message follows `<type>(<scope>)!: <description>`. Chinese or English both fine — use the imperative, no trailing period.
+No forced format — just make **what changed and why** clear. Two conventions:
 
-| type | Purpose | Example |
-|---|---|---|
-| `feat` | New capability (op / tool / assertion type) | `feat: bookmarks and cross-references — core analysis, writer, inspection tools, delivery-gate assertions` |
-| `fix` | Defect fix | `fix: pgMar on new documents now carries required XSD attributes (missing gutter failed schema validation)` |
-| `docs` | Docs, README, comments | `docs: README gains a version section and doc index` |
-| `refactor` | Restructure without behaviour change | `refactor: trim master file 43.8%, add regression contracts` |
-| `test` | Tests / contract list only | `test: add smoke cases for verify.js assertion types` |
-| `chore` | Deps, scripts, CI, housekeeping | `chore: .gitignore covers editor dirs and local build output` |
-| `revert` | Roll back an earlier commit | `revert!: roll back license change, stay on MIT` |
+① **One commit, one thing.** Code + its tests + CHANGELOG land together; pure doc polish goes separately.
 
-① **`scope` is optional** — add it for a subsystem: `feat(extend)`, `fix(verify)`, `docs(readme)`.
-
-② **`!` marks a breaking change** (`feat!:`, `chore!:`) and the body **must** state the blast radius and migration path — e.g. an op removed from the registry, a licence change, a default flipped.
-
-③ **Body uses `-` bullets**, one item each, covering *what* and *why*. Omit it when the subject already says everything.
-
-```text
-feat!: split editions — standard keeps everyday office / thesis / lab-report capability, 8 extend ops move to pro
-
-- OPERATIONS narrows from 24 to 16 entries, function bodies kept
-- new UNSUPPORTED_OPS makes misuse fail loudly with the available list
-- migration: need watermarks/shapes/charts? git checkout pro
-```
-
-④ **One commit, one thing.** Code + its tests + CHANGELOG land together; pure doc polish goes separately.
-
-⑤ **Keep branches in sync**: `main` and `pro` share code. After landing on `main`,
-run `git checkout pro && git checkout main -- <changed files>` and commit again with a `(pro sync)` suffix.
+② **Keep branches in sync**: `main` and `pro` share code. After landing on `main`,
+run `git checkout pro && git checkout main -- <changed files>` and commit again.
 
 ### Hard constraints
 
