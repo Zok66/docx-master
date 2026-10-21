@@ -12,8 +12,8 @@
 
 打开 `.docx` 这个 zip、直接改里面的 XML、原样封回去 —— **生成 · 读取 · 编辑 · 校验**，主链路零依赖
 
-![License](https://img.shields.io/badge/License-MIT-blue)
-![release](https://img.shields.io/badge/release-v0.16.0-green)
+![License](https://img.shields.io/badge/License-PolyForm--NC%20%E9%9D%9E%E5%95%86%E7%94%A8-red)
+![release](https://img.shields.io/badge/release-v0.17.0-green)
 ![stars](https://img.shields.io/badge/stars-%F0%9F%8C%9F%20%E2%9C%A8-yellow)
 ![standard](https://img.shields.io/badge/标准版-日常办公%20·%20论文%20·%20报告-3182ce)
 ![pro](https://img.shields.io/badge/pro版-水印%20·%20形状%20·%20图表%20·%20OLE-805ad5)
@@ -25,7 +25,12 @@
 
 > 🤖 **下一个 AI / 开发者请先读 [SKILL.md](SKILL.md)**（主流程、硬规则、路由索引），不要先全库扫描。
 
-**作者**：佐罗斯（[Zok66](https://github.com/Zok66)） · MIT 免费开源，可自由使用 / 修改 / 商用（保留版权声明即可）
+**作者**：佐罗斯（[Zok66](https://github.com/Zok66)）
+
+> ⚠️ **非商用声明 Non-Commercial Notice**：本技能仅供个人免费使用（学习 / 办公 / 论文 / 实训报告），
+> **禁止**任何形式的商业售卖、转卖、收费提供服务、在电商平台（闲鱼 / 淘宝 / 拼多多等）倒卖，
+> 以及改名换皮重新打包后冒充自有产品发布。二次开发公开发布须显著标注原作者。
+> 完整条款见 [LICENSE](LICENSE)（PolyForm Noncommercial 1.0.0）。发现倒卖欢迎通过 [Issues](https://github.com/Zok66/docx-master/issues) 举报。
 
 ## 亮点
 
@@ -89,7 +94,8 @@ git checkout main
 
 ## 版本
 
-- **当前版本：[v0.16.0](https://github.com/Zok66/docx-master/releases/tag/v0.16.0)**（2026-10-20，标准版首发）。
+- **当前版本：[v0.17.0](https://github.com/Zok66/docx-master/releases/tag/v0.17.0)**（2026-10-20，协议变更为非商用）。
+- **协议**：[PolyForm Noncommercial 1.0.0](LICENSE) —— 个人免费，商业用途需授权。
 - **升级**：技能目录内 `git pull` 覆盖安装；升级前建议跑一遍 `node tests/run.mjs` 确认环境契约完好。
 - **本次下载**：以 [Releases](https://github.com/Zok66/docx-master/releases) 页 Latest 为准，每个版本附能力清单与验收记录。
 - **历史版本**：[Releases](https://github.com/Zok66/docx-master/releases)。
@@ -98,6 +104,8 @@ git checkout main
 
 | 以前发布的版本 | 本版主要变化 |
 |---|---|
+| v0.17.0 | **协议变更**：MIT → PolyForm Noncommercial 1.0.0（非商用）；README 新增「亮点」「隐私与安全」 |
+| v0.16.0 | 版本拆分：标准版（`main`）/ pro 版（`pro`）；社区文件、Star History、中英双语 README |
 | v0.15.0 / 第十三~十五轮 | run / 段落级格式扩展 31 字段 + 拼音注音（`w:ruby`）纳入引擎；WPS「插入」选项卡对齐（docPartObj 内容控件 + glossary 封面排版）；批注锚点丢失等三项缺陷修复 |
 | v0.15.0-pro | 全功能版固化到 `pro` 分支：水印、形状、画布、智能图形、图表、OLE、构建基块、自定义 XML |
 | 第十轮及更早 | 交付门误报 / XSD 漏网 / 静默失效修复、skill 结构重构、书签与交叉引用、`batch_fill` 批量套打 |
@@ -115,7 +123,7 @@ git checkout main
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | 行为准则 |
 | [`SECURITY.md`](SECURITY.md) | 安全策略：支持的版本、漏洞私密报告渠道、威胁模型 |
 | [`tests/README.md`](tests/README.md) | 回归测试怎么跑、怎么加规则 / 用例 |
-| [`LICENSE`](LICENSE) | MIT 许可证 |
+| [`LICENSE`](LICENSE) | PolyForm Noncommercial 1.0.0（非商用许可，含历史 MIT 授权说明） |
 | [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | 第三方组件声明（Temml / ECMA-376 XSD 的来源与授权） |
 | [`Push-Sync.markdown`](Push-Sync.markdown) | GitHub ↔ Gitee 全量同步指南（分支 / Tag / Release / 许可证） |
 | [`references/`](references/) | 领域参考：配置 schema、定位器契约、工具全表、编号格式、题注、公式 … |
@@ -271,7 +279,19 @@ node tests/run.mjs --smoke    # 额外跑 tests/cases/*.json
 
 ## 许可
 
-MIT
+**[PolyForm Noncommercial 1.0.0](LICENSE)** —— 非商用许可，完整条款见 [`LICENSE`](LICENSE)。
+
+| 允许 | 禁止 |
+|---|---|
+| ✅ 个人免费使用（学习 / 办公 / 论文 / 实训报告） | ❌ 任何商业用途、销售、收费服务 |
+| ✅ 复制、传播（须随附本协议与署名） | ❌ 电商平台倒卖（闲鱼 / 淘宝 / 拼多多等） |
+| ✅ 修改、二次开发（须显著标注原作者） | ❌ 改名换皮后冒充自有产品发布 |
+| ✅ 用于教学、研究、非营利组织内部使用 | ❌ 未标注原作者的二次分发 |
+
+**历史授权说明**：v0.16.0 及更早版本曾以 MIT 授权发布（commit `291b86a` 之前），
+依 MIT 条款已获得的授权持续有效，不受本次协议变更影响。
+
+**内置第三方组件**遵循各自许可证，见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)。
 
 ## Star History
 
