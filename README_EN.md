@@ -19,7 +19,7 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 ![pro](https://img.shields.io/badge/pro-watermarks%20·%20shapes%20·%20charts%20·%20OLE-805ad5)
 ![deps](https://img.shields.io/badge/main%20chain-zero%20deps%20Node%20%2B%20lxml-orange)
 
-[FAQ](README_EN.md#frequently-asked-questions) · [Changelog](CHANGELOG.md) · [Dev conventions](README_EN.md#development-conventions) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+[Demo documents](#demo-documents-real-output-download-and-open) · [FAQ](README_EN.md#frequently-asked-questions) · [Changelog](CHANGELOG.md) · [Dev conventions](README_EN.md#development-conventions) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
