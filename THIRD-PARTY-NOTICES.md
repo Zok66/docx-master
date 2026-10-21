@@ -1,6 +1,6 @@
 # Third-Party Notices — 第三方组件声明
 
-本仓库包含下列第三方组件，按其各自许可证再分发。本仓库整体以 PolyForm Noncommercial 1.0.0 授权（见 [LICENSE](LICENSE)），
+本仓库包含下列第三方组件，按其各自许可证再分发。本仓库整体以 MIT 授权（见 [LICENSE](LICENSE)），
 以下组件的授权条款独立生效。
 
 ---
@@ -32,8 +32,6 @@
 ## 本仓库原创部分的授权
 
 除上述目录外，本仓库其余全部内容（`scripts/*.js`、`scripts/extend/*.py`、`references/`、
-`tests/`、文档与资产）均为原创，以 **PolyForm Noncommercial 1.0.0** 授权（非商用）：
+`tests/`、文档与资产）均为原创，以 MIT License 授权：
 
-> Required Notice: Copyright (c) 2026 Zok66 · 详见 [LICENSE](LICENSE)
-
-个人可免费使用、修改、传播；**商业用途需另行取得授权**。
+> MIT License · Copyright (c) 2026 Zok66 · 详见 [LICENSE](LICENSE)
