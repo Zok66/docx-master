@@ -102,7 +102,7 @@ git checkout main
 - **本次下载**：以 [Releases](https://github.com/Zok66/docx-master/releases) 页 Latest 为准，每个版本附能力清单与验收记录。
 - **历史版本**：[Releases](https://github.com/Zok66/docx-master/releases)。
 
-本版（v0.16.0）与旧版对比：
+本版（v0.17.0）与旧版对比：
 
 | 以前发布的版本 | 本版主要变化 |
 |---|---|
