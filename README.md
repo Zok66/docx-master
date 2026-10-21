@@ -1,10 +1,28 @@
 # docx-master
 
-> 直接操作 OOXML 的 Word 文档工具箱 —— **生成、读取、编辑、校验**，主链路零依赖。
+<div align="center">
+
+**直接操作 OOXML 的 Word 文档技能**
+
+打开 `.docx` 这个 zip、直接改里面的 XML、原样封回去 —— **生成 · 读取 · 编辑 · 校验**，主链路零依赖
+
+![License](https://img.shields.io/badge/License-MIT-blue)
+![release](https://img.shields.io/badge/release-v0.16.0-green)
+![stars](https://img.shields.io/badge/stars-%F0%9F%8C%9F%20%E2%9C%A8-yellow)
+![standard](https://img.shields.io/badge/标准版-日常办公%20·%20论文%20·%20报告-3182ce)
+![pro](https://img.shields.io/badge/pro版-水印%20·%20形状%20·%20图表%20·%20OLE-805ad5)
+![deps](https://img.shields.io/badge/主链路-零依赖%20Node%20%2B%20lxml-orange)
+
+[CHANGELOG](CHANGELOG.md) · [安全策略](SECURITY.md) · [pro 独有操作](references/pro-only-ops.md) · [回归测试](tests/README.md) · [贡献](CONTRIBUTING.md)
+
+</div>
+
+> 🤖 **下一个 AI / 开发者请先读 [SKILL.md](SKILL.md)**（主流程、硬规则、路由索引），不要先全库扫描。
 
 不依赖 Microsoft Word，不依赖 LibreOffice，不依赖 npm 上的 `docx` 包。打开 `.docx` 这个 zip、
 直接改里面的 XML，再原样封回去 —— 所以能做的事比"库能封装的 API"多得多：
-段落级重排、多级自动编号、目录域、脚注尾注、水印、页面边框、形状、图表、OLE、内容控件、批量套打。
+段落级重排、多级自动编号、目录域、脚注尾注、页面边框、内容控件、批量套打；
+pro 分支更进一步覆盖水印、形状、画布、智能图形、图表、OLE。
 
 原文件永不被修改：每个写盘命令都产出新文件，且在写入前跑校验。
 
