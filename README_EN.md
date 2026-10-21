@@ -31,6 +31,8 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 > **Commercial sale, resale, paid services, and reselling on marketplaces** (Xianyu / Taobao / Pinduoduo, etc.)
 > are prohibited, as is rebranding and republishing it as your own product. Public forks must credit the
 > original author. Full terms: [LICENSE](LICENSE) (PolyForm Noncommercial 1.0.0).
+>
+> ℹ️ GitHub and Gitee do not recognize PolyForm, so the repo sidebar shows "Other" / no license. That is expected — the [LICENSE](LICENSE) file is authoritative.
 
 ## Highlights
 

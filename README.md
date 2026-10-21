@@ -31,6 +31,8 @@
 > **禁止**任何形式的商业售卖、转卖、收费提供服务、在电商平台（闲鱼 / 淘宝 / 拼多多等）倒卖，
 > 以及改名换皮重新打包后冒充自有产品发布。二次开发公开发布须显著标注原作者。
 > 完整条款见 [LICENSE](LICENSE)（PolyForm Noncommercial 1.0.0）。发现倒卖欢迎通过 [Issues](https://github.com/Zok66/docx-master/issues) 举报。
+>
+> ℹ️ GitHub / Gitee 的许可证标签不识别 PolyForm，仓库页显示 "Other / 未标注" 属正常现象，以 [LICENSE](LICENSE) 文件正文为准。
 
 ## 亮点
 
