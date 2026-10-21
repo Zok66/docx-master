@@ -87,6 +87,15 @@
     "scripts/verify.js"
   ],
 
+  "readmeRequiredHeadings": [
+    { "file": "README.md", "heading": "## 常见问题 FAQ", "why": "README 必须提供常见问题答疑" },
+    { "file": "README.md", "heading": "## 开发规范", "why": "README 必须写明提交规范 / 硬约束 / 自检" },
+    { "file": "README.md", "heading": "## 版本与更新日志", "why": "README 必须给出当前版本与更新日志入口" },
+    { "file": "README_EN.md", "heading": "## Frequently asked questions", "why": "英文版同步提供 FAQ" },
+    { "file": "README_EN.md", "heading": "## Development conventions", "why": "英文版同步提供开发规范" },
+    { "file": "README_EN.md", "heading": "## Version & Changelog", "why": "英文版同步提供版本与更新日志" }
+  ],
+
   "skillMdMaxBytes": 20000,
   "skillMdDescriptionMaxChars": 1100
 }

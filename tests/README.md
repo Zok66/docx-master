@@ -16,7 +16,7 @@ node tests/run.mjs --smoke    # 额外跑 tests/cases/*.json（需要能 spawn �
 |---|---|---|
 | 1 | **结构契约** | SKILL.md frontmatter 合法、体积 ≤ `skillMdMaxBytes`、description 长度上限 |
 | 2 | **规则契约** | `contract.json` 里每条「不可丢失的强制规则」仍出现在其声明的文件里 |
-| 3 | **资源契约** | 契约声明的 `references/*.md` 与 `scripts/*.js` 真实存在 |
+| 3 | **资源契约** | 契约声明的 `references/*.md` 与 `scripts/*.js` 真实存在；README / README_EN 的必备章节（FAQ / 开发规范 / 版本与更新日志）不得丢失 |
 | 4 | **链接完整性** | 所有 md 的相对链接（含 `#锚点`，按 GitHub slug 规则）可解析 |
 
 第 2 类是关键：它把「不能为了省 token 删掉必要约束」变成了一条**可执行的断言**。
