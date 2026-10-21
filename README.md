@@ -48,6 +48,15 @@
 - **pipeline 一条命令跑完整条链路**，任一步失败立即中止，不留"跑了前半段"的半成品
 - **AI 友好**：`SKILL.md` 主控入口 + 规则唯一来源契约，回归测试守住"规则不许凭空消失"
 
+零依赖不是口号，是四个具体的取舍 ——「不做什么 / 换成什么 / 换来什么」：
+
+| ① 不依赖 | ② 换成什么 | ③ 于是能做什么 |
+|---|---|---|
+| Microsoft Word | 直接读写 OOXML（ECMA-376 / ISO 29500） | 段落级重排、多级自动编号、目录域、页面边框、内容控件、批量套打 |
+| LibreOffice | 主链路纯 Node + Python `lxml` | 无 GUI、无 COM、可在 CI / 沙箱 / 服务器上跑 |
+| npm `docx` 包 | 自己封 `w:p` / `w:tbl` / `w:sdt` | 库没封装的角落也能改，不被 API 表达力卡住 |
+| 云转换服务 | 全程本地 | 文档不出机器，涉密 / 内部资料可用 |
+
 ## 隐私与安全
 
 - **文档全部在本地处理**，不上传到任何云转换服务
@@ -58,14 +67,6 @@
 不依赖 Microsoft Word，不依赖 LibreOffice，不依赖 npm 上的 `docx` 包。打开 `.docx` 这个 zip、
 直接改里面的 XML，再原样封回去 —— 所以能做的东西比"库能封装的 API"多得多。
 下面按「不做什么 / 换成什么 / 换来什么」三栏列清楚：
-
-| ① 不依赖 | ② 换成什么 | ③ 于是能做什么 |
-|---|---|---|
-| Microsoft Word | 直接读写 OOXML（ECMA-376 / ISO 29500） | 段落级重排、多级自动编号、目录域、页面边框、内容控件、批量套打 |
-| LibreOffice | 主链路纯 Node + Python `lxml` | 无 GUI、无 COM、可在 CI / 沙箱 / 服务器上跑 |
-| npm `docx` 包 | 自己封 `w:p` / `w:tbl` / `w:sdt` | 库没封装的角落也能改，不被 API 表达力卡住 |
-| 云转换服务 | 全程本地 | 文档不出机器，涉密 / 内部资料可用 |
-
 
 ## 两个版本
 
@@ -94,8 +95,7 @@
 - **当前版本：[v0.16.0](https://github.com/Zok66/docx-master/releases/tag/v0.16.0)**（2026-10-20，标准版首发）。
 - **协议**：[MIT](LICENSE) —— 自由使用、修改、分发与商业使用，保留版权与许可声明即可。
 - **升级**：技能目录内 `git pull` 覆盖安装，完成后按「[回归测试](#回归测试)」跑一遍自检。
-- **本次下载**：以 [Releases](https://github.com/Zok66/docx-master/releases) 页 Latest 为准，每个版本附能力清单与验收记录。
-- **历史版本**：[Releases](https://github.com/Zok66/docx-master/releases)。
+- **下载 / 历史版本**：见 [Releases](https://github.com/Zok66/docx-master/releases) 页，Latest 即当前推荐版，每个版本附能力清单与验收记录。
 
 ### 版本速览
 
@@ -185,7 +185,7 @@ node $SK/scripts/inspect_bookmarks.js 我的文档.docx   # 书签 + 所有引�
 # ③ 单步设计：一份 config，先干跑不落盘，再落盘（输出新文件，原文件不动）
 node $SK/scripts/apply.js --dry-run my.config.json
 node $SK/scripts/apply.js my.config.json
-python $SK/scripts/extend/extend.py extend.config.json   # 目录 / 水印 / 脚注 / 图表 …
+python $SK/scripts/extend/extend.py extend.config.json   # 目录 / 页码 / 脚注 / 页面边框 …（标准版 16 项；水印 / 图表属 pro 版）
 
 # ④ 或者：把上面几步声明成一条链路，一条命令跑完（推荐）
 node $SK/scripts/pipeline.js build.json          # 任一步失败即中止，末尾自动双校验
@@ -263,9 +263,8 @@ node $SK/scripts/batch_fill.js 合同模板.docx 客户.csv \
 <details>
 <summary><b>① 需要装 Microsoft Word 或 LibreOffice 吗？</b></summary>
 
-主链路**都不需要**。生成 / 读取 / 编辑 / 校验只靠 Node 标准库 + Python `lxml`。
-只有这两个可选能力才需要外部工具：旧版 `.doc` → `.docx` 转换（LibreOffice）、渲染成图做视觉复核（LibreOffice + Poppler）。
-`node scripts/doctor.js` 会告诉你本机哪些可选项真的可用。
+主链路**都不需要**。哪些能力依赖什么，见「[亮点](#亮点)」末尾的取舍表与「[依赖](#依赖)」一节；
+两个可选能力（`.doc` 转换、渲染成图）需要 LibreOffice。`node scripts/doctor.js` 会探测本机实际可用情况。
 
 </details>
 

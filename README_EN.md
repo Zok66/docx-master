@@ -48,6 +48,15 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 - **One command for the whole chain**: `pipeline` aborts on first failure — no half-done intermediates
 - **AI-friendly**: `SKILL.md` master entry + single-source-of-truth rule contracts, guarded by regression tests
 
+Zero-dependency is not a slogan — it is four concrete trade-offs ("drop / replace / gain"):
+
+| ① Not depending on | ② Replaced by | ③ So you can |
+|---|---|---|
+| Microsoft Word | Reading/writing OOXML directly (ECMA-376 / ISO 29500) | Restyle paragraphs, multi-level auto-numbering, TOC fields, page borders, content controls, mail-merge |
+| LibreOffice | Node stdlib + Python `lxml` for the main chain | Run headless in CI, sandboxes, and servers — no GUI, no COM |
+| npm `docx` package | Hand-written `w:p` / `w:tbl` / `w:sdt` | Touch corners no library wraps; never blocked by API expressiveness |
+| Cloud conversion services | Everything local | Documents never leave the machine — safe for internal material |
+
 ## Privacy & Security
 
 - **Documents are processed entirely locally** — nothing is uploaded to any cloud conversion service
@@ -57,14 +66,6 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 
 No Microsoft Word, no LibreOffice, no npm `docx` package. Unzip the `.docx`, edit the XML inside,
 zip it back — which is why it can do far more than "what a library API can wrap". Three columns say it plainly:
-
-| ① Not depending on | ② Replaced by | ③ So you can |
-|---|---|---|
-| Microsoft Word | Reading/writing OOXML directly (ECMA-376 / ISO 29500) | Restyle paragraphs, multi-level auto-numbering, TOC fields, page borders, content controls, mail-merge |
-| LibreOffice | Node stdlib + Python `lxml` for the main chain | Run headless in CI, sandboxes, and servers — no GUI, no COM |
-| npm `docx` package | Hand-written `w:p` / `w:tbl` / `w:sdt` | Touch corners no library wraps; never blocked by API expressiveness |
-| Cloud conversion services | Everything local | Documents never leave the machine — safe for internal material |
-
 
 ## Two editions
 
@@ -96,8 +97,7 @@ See [`references/pro-only-ops.md`](references/pro-only-ops.md) for the list and 
 - **Current: [v0.16.0](https://github.com/Zok66/docx-master/releases/tag/v0.16.0)** (2026-10-20, first standard-edition release).
 - **License**: [MIT](LICENSE) — free to use, modify, distribute, and use commercially; keep the copyright and permission notice.
 - **Upgrade**: `git pull` inside the skill directory, then self-check as described under [Regression tests](#regression-tests).
-- **Download**: pick Latest from [Releases](https://github.com/Zok66/docx-master/releases); each release ships a capability list and acceptance record.
-- **History**: [Releases](https://github.com/Zok66/docx-master/releases).
+- **Download / history**: see [Releases](https://github.com/Zok66/docx-master/releases) — Latest is the recommended one; each release ships a capability list and acceptance record.
 
 ### At a glance
 
@@ -188,7 +188,7 @@ node $SK/scripts/inspect_bookmarks.js my-doc.docx   # bookmarks + references + d
 # ③ Single-step design: one config — dry-run first, then write (new file; original untouched)
 node $SK/scripts/apply.js --dry-run my.config.json
 node $SK/scripts/apply.js my.config.json
-python $SK/scripts/extend/extend.py extend.config.json   # TOC / notes / charts …
+python $SK/scripts/extend/extend.py extend.config.json   # TOC / numbering / notes / page borders … (16 ops in standard; watermarks / charts are pro-only)
 
 # ④ Or: declare the whole chain and run it in one command (recommended)
 node $SK/scripts/pipeline.js build.json          # aborts on first failure, auto-validates at the end
@@ -270,9 +270,9 @@ Contribution flow and bug-report format: [CONTRIBUTING.md](CONTRIBUTING.md).
 <details>
 <summary><b>① Do I need Microsoft Word or LibreOffice?</b></summary>
 
-**Neither** for the main chain. Generate / read / edit / validate run on Node stdlib + Python `lxml`.
-Only two optional capabilities need externals: legacy `.doc` → `.docx` conversion (LibreOffice) and
-render-to-image for visual review (LibreOffice + Poppler). `node scripts/doctor.js` reports what is actually available.
+**Neither** for the main chain. What depends on what: see the trade-off table at the end of
+[Highlights](#highlights) and the [Dependencies](#dependencies) section. The two optional capabilities
+(`.doc` conversion, render-to-image) need LibreOffice. `node scripts/doctor.js` probes what is actually available.
 
 </details>
 
