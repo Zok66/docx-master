@@ -244,38 +244,14 @@ node $SK/scripts/batch_fill.js 合同模板.docx 客户.csv \
 
 ## 开发规范
 
-### 提交规范（Conventional Commits）
+### 提交说明
 
-提交信息统一格式：`<type>(<scope>)!: <说明>`，中英文皆可，**说明用祈使句、不加句号**。
+不强制格式，写清**改了什么 / 为什么**即可。两个约定：
 
-| type | 用途 | 例子 |
-|---|---|---|
-| `feat` | 新增能力（新的 op / 工具 / 断言类型） | `feat: 书签与交叉引用 —— 分析核心 / 写入能力 / 侦察工具 / 交付门断言` |
-| `fix` | 修缺陷 | `fix: 新建 pgMar 补齐 XSD 必填属性（gutter 缺失导致 schema 校验失败）` |
-| `docs` | 文档、README、注释 | `docs: README 增加版本区与文档索引` |
-| `refactor` | 不改行为的重构 | `refactor: 主控瘦身 43.8% + 回归测试契约` |
-| `test` | 只动测试 / 契约清单 | `test: 补 verify.js 断言类型的 smoke case` |
-| `chore` | 依赖、脚本、CI、杂务 | `chore: .gitignore 补编辑器目录与本地运行产物` |
-| `revert` | 回撤既有提交 | `revert!: 回撤协议变更，维持 MIT 授权` |
+① **一次提交一件事**。代码 + 对应测试 + CHANGELOG 同一提交；纯文档润色单独提。
 
-① **scope 可省**，涉及具体子系统时写：`feat(extend)`、`fix(verify)`、`docs(readme)`。
-
-② **`!` 表示破坏性变更**（`feat!:` / `chore!:`），并必须在 body 里写清**影响面与迁移方式** —— 例如 op 被移出注册表、协议变更、默认行为翻转。
-
-③ **body 用 `-` 列点**，一条一项，说清"改了什么 / 为什么"。单行改动能表达清楚时可以省。
-
-```text
-feat!: 版本拆分 —— 标准版保留日常办公/论文/实训报告能力，8 个扩展 op 移交 pro 版
-
-- OPERATIONS 24 项收敛到 16 项，函数体保留
-- 新增 UNSUPPORTED_OPS，误调用明确报错并列出可用操作
-- 迁移：需要水印/形状/图表请 git checkout pro
-```
-
-④ **一次提交一件事**。代码 + 对应测试 + CHANGELOG 同一提交；纯文档润色单独提。
-
-⑤ **两个分支同步**：`main` 与 `pro` 共用代码，改动落到 `main` 后
-`git checkout pro && git checkout main -- <改过的文件>` 再提一次，提交信息后缀 `（pro 分支同步）`。
+② **两个分支同步**：`main` 与 `pro` 共用代码，改动落到 `main` 后
+`git checkout pro && git checkout main -- <改过的文件>` 再提一次。
 
 ### 代码与文档硬约束
 
