@@ -19,7 +19,7 @@
 ![pro](https://img.shields.io/badge/pro版-水印%20·%20形状%20·%20图表%20·%20OLE-805ad5)
 ![deps](https://img.shields.io/badge/主链路-零依赖%20Node%20%2B%20lxml-orange)
 
-[常见问题](README.md#常见问题-faq) · [更新日志](CHANGELOG.md) · [开发规范](README.md#开发规范) · [安全策略](SECURITY.md) · [贡献](CONTRIBUTING.md)
+[文档示例 demo](#效果-demo真实产出可直接下载打开) · [常见问题](README.md#常见问题-faq) · [更新日志](CHANGELOG.md) · [开发规范](README.md#开发规范) · [安全策略](SECURITY.md) · [贡献](CONTRIBUTING.md)
 
 </div>
 
