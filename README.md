@@ -65,6 +65,9 @@ git checkout main
 | [`SKILL.md`](SKILL.md) | 技能主入口 —— 主流程、硬规则、路由索引（AI 触发即读） |
 | [`references/pro-only-ops.md`](references/pro-only-ops.md) | 标准版不含的 8 个操作清单 + 切到 pro 版的方法 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 完整更新记录（能力与行为变更，逐轮可检索） |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么贡献：开发流程、硬约束、缺陷报告格式 |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | 行为准则 |
+| [`SECURITY.md`](SECURITY.md) | 安全策略：支持的版本、漏洞私密报告渠道、威胁模型 |
 | [`tests/README.md`](tests/README.md) | 回归测试怎么跑、怎么加规则 / 用例 |
 | [`references/`](references/) | 领域参考：配置 schema、定位器契约、工具全表、编号格式、题注、公式 … |
 | [`pro/`](pro/) | 可选 Python 工具链：批注、接受修订、渲染、XSD 校验 |
@@ -220,3 +223,14 @@ node tests/run.mjs --smoke    # 额外跑 tests/cases/*.json
 ## 许可
 
 MIT
+
+## Star History
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/star-history-dark.svg">
+  <img src="assets/star-history-light.svg" alt="Zok66/docx-master 的 Star History 曲线">
+</picture>
+
+由 [`tools/gen-star-history.py`](tools/gen-star-history.py) 每 12 小时拉取 GitHub 星标时间并更新
+（[workflow](.github/workflows/star-history.yml)）。浅色、深色 SVG 保存在本仓库；
+曲线按当前保留的星标汇总。
