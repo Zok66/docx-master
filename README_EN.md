@@ -38,7 +38,6 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 
 ## Highlights
 
-- **Original file is never modified** — every write command produces a new copy, auto-validated twice before landing (Node schema + XSD/OPC)
 - **Full generate · read · edit · validate chain, zero npm dependencies** — main chain uses only the Node standard library + Python lxml
 - **Normalize**: turns hand-typed `一、`/`1.1` prefixes into real multi-level auto-numbering and reshapes typography by role
 - **Ready for theses / lab reports**: TOC fields, page numbering, headers & footers, footnotes, captions, cross-references, citations & bibliography
@@ -52,7 +51,6 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 
 - **Documents are processed entirely locally** — nothing is uploaded to any cloud conversion service
 - **Macros / OLE payloads inside documents are never executed**; no network access (`doctor` only probes locally installed tools)
-- The original file stays untouched: every write command produces a new file
 - When processing **untrusted** docx files, run in an isolated environment (same common sense as opening unknown Word documents)
 - Report vulnerabilities privately — see [SECURITY.md](SECURITY.md)
 
@@ -66,9 +64,6 @@ zip it back — which is why it can do far more than "what a library API can wra
 | npm `docx` package | Hand-written `w:p` / `w:tbl` / `w:sdt` | Touch corners no library wraps; never blocked by API expressiveness |
 | Cloud conversion services | Everything local | Documents never leave the machine — safe for internal material |
 
-The `pro` branch goes further: watermarks, shapes, canvas, SmartArt, charts, OLE.
-
-The original file is never modified: every write command produces a new file, validated before it lands.
 
 ## Two editions
 
@@ -91,18 +86,7 @@ One repo, two branches. **Standard (for everyday office work, theses, lab report
 | Building blocks (AutoText) / custom XML | — | ✅ |
 | Full XSD schema set (complete schema validation) | trimmed | full |
 
-```bash
-# Standard (default — what you get on clone)
-git clone https://github.com/Zok66/docx-master.git ~/.workbuddy/skills/docx-master
-
-# pro (full-featured)
-cd ~/.workbuddy/skills/docx-master && git checkout pro
-
-# back to standard
-git checkout main
-```
-
-The 8 stripped `extend` ops **still exist in the code** (just not registered in `OPERATIONS`);
+Install and edition switching: see [Install](#install). The 8 stripped `extend` ops **still exist in the code** (just not registered in `OPERATIONS`);
 calling them fails loudly with the 16 available ops listed — never a silent downgrade.
 See [`references/pro-only-ops.md`](references/pro-only-ops.md) for the list and history.
 
@@ -110,7 +94,7 @@ See [`references/pro-only-ops.md`](references/pro-only-ops.md) for the list and 
 
 - **Current: [v0.16.0](https://github.com/Zok66/docx-master/releases/tag/v0.16.0)** (2026-10-20, first standard-edition release).
 - **License**: [MIT](LICENSE) — free to use, modify, distribute, and use commercially; keep the copyright and permission notice.
-- **Upgrade**: `git pull` inside the skill directory; run `node tests/run.mjs` afterwards to confirm environment contracts.
+- **Upgrade**: `git pull` inside the skill directory, then self-check as described under [Regression tests](#regression-tests).
 - **Download**: pick Latest from [Releases](https://github.com/Zok66/docx-master/releases); each release ships a capability list and acceptance record.
 - **History**: [Releases](https://github.com/Zok66/docx-master/releases).
 
@@ -163,7 +147,7 @@ Release procedure (tag → dual-platform release → verification) is documented
 | **Generate** | Omit `source` to scaffold a new document from the bundled blank template; or import styles & numbering from an existing template |
 | **Normalize** | Reshape the whole document by role: classify paragraphs → bind named styles → install multi-level auto-numbering, turning hand-typed `一、`/`1.1` into real numbering |
 | **Edit** | Locator-based surgery: replace / insert / delete paragraphs, table cells, embedded images — optionally leaving tracked changes |
-| **Extend** | `extend` fills what the engine deliberately doesn't write: TOC / table-of-figures / index fields, page & section breaks, page numbering, named bookmarks, footnotes & endnotes, page borders & background, images, content controls, cover pages, citations. Watermarks / shapes / charts / OLE / SmartArt / building blocks / custom XML are pro-only |
+| **Extend** | `extend` fills what the engine deliberately doesn't write: TOC / table-of-figures / index fields, page & section breaks, page numbering, named bookmarks, footnotes & endnotes, page borders & background, images, content controls, cover pages, citations. Watermarks / shapes / charts / OLE / SmartArt etc. are pro-only (see [Two editions](#two-editions)) |
 | **Bookmarks / cross-references** | Named bookmarks (three entry points), `refTo` → REF cross-references, `{ "link": "#name" }` in-page jumps; `inspect_bookmarks` + `refsResolve` assertions catch the **invisible defect class** "reference points to a missing bookmark" |
 | **Batch** | One template + one CSV / JSON data table → one document per row (a replacement for Word mail-merge) |
 | **Orchestrate** | `pipeline`: declare 「config → apply → extend → validate → assert」 as one chain, **run in a single command**, abort on first failure — no half-done intermediates. In no-subprocess environments (sandboxes) use `--emit-script` to generate a `set -e` script with identical abort semantics |
@@ -178,7 +162,14 @@ Release procedure (tag → dual-platform release → verification) is documented
 Drop it into your skills directory (any environment that supports `SKILL.md` — WorkBuddy / Claude Code etc.):
 
 ```bash
+# Standard edition (default — what you get on clone)
 git clone https://github.com/Zok66/docx-master.git ~/.workbuddy/skills/docx-master
+
+# Full-featured: switch branch in the same repo, no reinstall
+cd ~/.workbuddy/skills/docx-master && git checkout pro
+
+# back to standard
+git checkout main
 ```
 
 ## Quick start
@@ -265,16 +256,12 @@ run `git checkout pro && git checkout main -- <changed files>` and commit again.
 |---|---|
 | `SKILL.md` ≤ 20000 B | `node tests/run.mjs` fails the build; overflow moves to `references/` with a pointer left behind |
 | **One rule, one definition** | Rules are listed in `tests/contract.json`; delete one and tests go red |
-| Write commands must produce a **new file** | Code review + regression cases |
 | All internal links (anchors included) must resolve | The "links" contract class in `node tests/run.mjs` |
 | New capability → contract entry + CHANGELOG | See [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 ### Before you commit
 
-```bash
-node tests/run.mjs --smoke     # structure + rules + resources + links contracts, plus smoke cases
-```
-
+Run the `--smoke` tier described under [Regression tests](#regression-tests).
 Contribution flow and bug-report format: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Frequently asked questions
@@ -291,8 +278,7 @@ render-to-image for visual review (LibreOffice + Poppler). `node scripts/doctor.
 <details>
 <summary><b>② Will it modify my source file?</b></summary>
 
-**Never.** Every write command produces a new file; the source is byte-for-byte untouched.
-`verify.js --diff` reads the original but only emits a report.
+**Never.** The source stays byte-for-byte untouched, and `verify.js --diff` is read-only.
 
 </details>
 
@@ -323,16 +309,11 @@ Then gate it with the `refsResolve` / `bookmarkProblems` assertions in `verify`.
 <details>
 <summary><b>⑤ Standard or pro — do I reinstall to switch?</b></summary>
 
-No reinstall; one repo, two branches:
+No reinstall — one repo, two branches: `git checkout pro` / `git checkout main`, commands under [Install](#install).
 
-```bash
-cd ~/.workbuddy/skills/docx-master
-git checkout pro     # full-featured (watermarks / shapes / charts / OLE / SmartArt…)
-git checkout main    # standard (default)
-```
-
-Everyday office work, theses and lab reports are covered by the standard edition. See
-[`references/pro-only-ops.md`](references/pro-only-ops.md) for the difference list.
+Everyday office work, theses and lab reports are covered by the standard edition; switch to `pro` for
+watermarks, shapes and charts. Full comparison in [Two editions](#two-editions), the 8-op list in
+[`references/pro-only-ops.md`](references/pro-only-ops.md).
 
 </details>
 
@@ -357,14 +338,9 @@ by `lint.panguSpacing` (silent by default). Fields are documented in
 <details>
 <summary><b>⑧ Can it batch-generate documents?</b></summary>
 
-Yes — it replaces Word mail merge:
-
-```bash
-node scripts/batch_fill.js contract-template.docx customers.csv \
-  --out-dir out/ --name "{{id}}-{{customer}}.docx" --validate
-```
-
-Placeholders live in the template; each CSV / JSON row produces one output, and `--validate` checks every file.
+Yes — it replaces Word mail merge in one command; see the `batch_fill.js` example at the end of
+[Quick start](#quick-start). Placeholders live in the template; each CSV / JSON row produces one output,
+and `--validate` checks every file.
 
 </details>
 
@@ -426,8 +402,7 @@ docx-master/
 └── pro/                  # optional Python toolchain (comments, accept revisions, rendering, XSD validation)
 ```
 
-Standard and pro share one codebase; the only difference is the `OPERATIONS` registry in
-`scripts/extend/extend.py` (16 vs 24 ops). This section describes the **standard edition** (`main`).
+This section describes the **standard edition** (`main`); the `pro` branch has the same layout.
 
 ## Regression tests
 
