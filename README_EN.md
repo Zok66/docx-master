@@ -38,6 +38,7 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 
 ## Highlights
 
+- **Original file is never modified** — every write command produces a new copy, auto-validated twice before landing (Node schema + XSD/OPC)
 - **Full generate · read · edit · validate chain, zero npm dependencies** — main chain uses only the Node standard library + Python lxml
 - **Normalize**: turns hand-typed `一、`/`1.1` prefixes into real multi-level auto-numbering and reshapes typography by role
 - **Ready for theses / lab reports**: TOC fields, page numbering, headers & footers, footnotes, captions, cross-references, citations & bibliography
