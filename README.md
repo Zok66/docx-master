@@ -2,6 +2,12 @@
 
 <div align="center">
 
+**简体中文** | [English](README_EN.md)
+
+</div>
+
+<div align="center">
+
 **直接操作 OOXML 的 Word 文档技能**
 
 打开 `.docx` 这个 zip、直接改里面的 XML、原样封回去 —— **生成 · 读取 · 编辑 · 校验**，主链路零依赖
