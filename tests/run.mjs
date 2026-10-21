@@ -164,6 +164,12 @@ for (const f of contract.requiredReferenceFiles) {
 for (const f of contract.requiredScripts) {
   fs.existsSync(path.join(ROOT, f)) ? ok(`存在 ${f}`) : bad(`存在 ${f}`, '文件缺失');
 }
+for (const { file, heading, why } of contract.readmeRequiredHeadings || []) {
+  const p = path.join(ROOT, file);
+  const hit = fs.existsSync(p) &&
+    fs.readFileSync(p, 'utf8').split(/\r?\n/).some((line) => line.trim() === heading);
+  hit ? ok(`${file} 含「${heading}」`) : bad(`${file} 含「${heading}」`, why);
+}
 
 // ---------- 4. 链接完整性 ----------
 

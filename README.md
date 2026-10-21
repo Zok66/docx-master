@@ -19,13 +19,22 @@
 ![pro](https://img.shields.io/badge/pro版-水印%20·%20形状%20·%20图表%20·%20OLE-805ad5)
 ![deps](https://img.shields.io/badge/主链路-零依赖%20Node%20%2B%20lxml-orange)
 
-[CHANGELOG](CHANGELOG.md) · [安全策略](SECURITY.md) · [pro 独有操作](references/pro-only-ops.md) · [回归测试](tests/README.md) · [贡献](CONTRIBUTING.md)
+[常见问题](README.md#常见问题-faq) · [更新日志](CHANGELOG.md) · [开发规范](README.md#开发规范) · [安全策略](SECURITY.md) · [贡献](CONTRIBUTING.md)
 
 </div>
 
 > 🤖 **下一个 AI / 开发者请先读 [SKILL.md](SKILL.md)**（主流程、硬规则、路由索引），不要先全库扫描。
 
 **作者**：佐罗斯（[Zok66](https://github.com/Zok66)） · MIT 免费开源，可自由使用 / 修改 / 商用（保留版权声明即可）
+
+## 目录
+
+- ① [亮点](#亮点) —— 一句话说清它凭什么存在
+- ② [隐私与安全](#隐私与安全) · [两个版本](#两个版本) —— 本地处理；标准版 / pro 版边界
+- ③ [版本与更新日志](#版本与更新日志) · [文档索引](#文档索引) —— 当前版本、历史变更、全部文档
+- ④ [能力一览](#能力一览) · [安装](#安装) · [快速开始](#快速开始) —— 能做什么、怎么装上、四条命令跑通
+- ⑤ [设计原则](#设计原则) · [开发规范](#开发规范) · [常见问题 FAQ](#常见问题-faq) —— 为什么这么设计、怎么提交、常见坑
+- ⑥ [目录结构](#目录结构) · [回归测试](#回归测试) · [依赖](#依赖) · [适用边界](#适用边界) · [许可](#许可)
 
 ## 亮点
 
@@ -48,8 +57,16 @@
 - 漏洞报告走私密渠道，详见 [SECURITY.md](SECURITY.md)
 
 不依赖 Microsoft Word，不依赖 LibreOffice，不依赖 npm 上的 `docx` 包。打开 `.docx` 这个 zip、
-直接改里面的 XML，再原样封回去 —— 所以能做的事比"库能封装的 API"多得多：
-段落级重排、多级自动编号、目录域、脚注尾注、页面边框、内容控件、批量套打；
+直接改里面的 XML，再原样封回去 —— 所以能做的东西比"库能封装的 API"多得多。
+下面按「不做什么 / 换成什么 / 换来什么」三栏列清楚：
+
+| ① 不依赖 | ② 换成什么 | ③ 于是能做什么 |
+|---|---|---|
+| Microsoft Word | 直接读写 OOXML（ECMA-376 / ISO 29500） | 段落级重排、多级自动编号、目录域、页面边框、内容控件、批量套打 |
+| LibreOffice | 主链路纯 Node + Python `lxml` | 无 GUI、无 COM、可在 CI / 沙箱 / 服务器上跑 |
+| npm `docx` 包 | 自己封 `w:p` / `w:tbl` / `w:sdt` | 库没封装的角落也能改，不被 API 表达力卡住 |
+| 云转换服务 | 全程本地 | 文档不出机器，涉密 / 内部资料可用 |
+
 pro 分支更进一步覆盖水印、形状、画布、智能图形、图表、OLE。
 
 原文件永不被修改：每个写盘命令都产出新文件，且在写入前跑校验。
@@ -87,7 +104,7 @@ git checkout main
 
 被剥离的 8 个 `extend` op 在**代码里仍在**（只是没注册进 `OPERATIONS`），调用会明确报错并提示可用的 16 项操作——不会静默降级。清单与历史实现见 [`references/pro-only-ops.md`](references/pro-only-ops.md)。
 
-## 版本
+## 版本与更新日志
 
 - **当前版本：[v0.16.0](https://github.com/Zok66/docx-master/releases/tag/v0.16.0)**（2026-10-20，标准版首发）。
 - **协议**：[MIT](LICENSE) —— 自由使用、修改、分发与商业使用，保留版权与许可声明即可。
@@ -95,15 +112,29 @@ git checkout main
 - **本次下载**：以 [Releases](https://github.com/Zok66/docx-master/releases) 页 Latest 为准，每个版本附能力清单与验收记录。
 - **历史版本**：[Releases](https://github.com/Zok66/docx-master/releases)。
 
-本版（v0.16.0）与旧版对比：
+### 版本速览
 
-| 以前发布的版本 | 本版主要变化 |
-|---|---|
-| v0.15.0 / 第十三~十五轮 | run / 段落级格式扩展 31 字段 + 拼音注音（`w:ruby`）纳入引擎；WPS「插入」选项卡对齐（docPartObj 内容控件 + glossary 封面排版）；批注锚点丢失等三项缺陷修复 |
-| v0.15.0-pro | 全功能版固化到 `pro` 分支：水印、形状、画布、智能图形、图表、OLE、构建基块、自定义 XML |
-| 第十轮及更早 | 交付门误报 / XSD 漏网 / 静默失效修复、skill 结构重构、书签与交叉引用、`batch_fill` 批量套打 |
+| 版本 | 定位 | 分支 | 关键变化 |
+|---|---|---|---|
+| **v0.16.0** ⬅ 当前 | 标准版 · 日常办公 / 论文 / 实训报告 | `main` | 版本拆分精简、社区文件、Star History、中英双语 README |
+| v0.16.0-pro | 全功能版 · 含水印 / 形状 / 图表 / OLE | `pro` | 同标准版代码 + 24 项全量 `extend` |
+| v0.15.0 | 拆分前最后一版（全功能） | — | 31 字段格式扩展、拼音注音、WPS「插入」对齐 |
+| 更早 | — | — | 见 [CHANGELOG.md](CHANGELOG.md) 第五~十五轮 |
 
-完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+### 更新日志
+
+完整记录见 **[`CHANGELOG.md`](CHANGELOG.md)** —— 只记**能力与行为变更**（新增字段 / 修掉的缺陷 / 明确的边界），
+文档润色不记，每条都可在 `apply.js`、`scripts/extend/*.py` 里检索到对应实现。
+
+最近三轮：
+
+| 日期 | 版本 | 摘要 |
+|---|---|---|
+| 2026-10-20 | — | 授权确认：维持 MIT（曾一度改 PolyForm NC，已回撤，`LICENSE` 与 v0.16.0 一致） |
+| 2026-10-20 | **v0.16.0** | ① 拆标准版 / pro 版（`OPERATIONS` 16 vs 24）② 8 个 op 剥离并明确报错 ③ 中英双语 + 社区文件 + Star History |
+| 2026-10-20 | v0.15.0 | ① run / 段落级 31 字段 + 拼音注音 ② WPS「插入」对齐 ③ 批注锚点等三项缺陷修复 |
+
+发版流程（打 tag → 双平台 Release → 同步核对）见 [`Push-Sync.markdown`](Push-Sync.markdown)。
 
 ## 文档索引
 
@@ -152,23 +183,23 @@ git clone https://github.com/Zok66/docx-master.git ~/.workbuddy/skills/docx-mast
 ```bash
 SK=~/.workbuddy/skills/docx-master
 
-# 0) 开工前：探测环境能力（哪些可选项真的可用、哪些会降级）
+# ① 开工前：探测环境能力（哪些可选项真的可用、哪些会降级）
 node $SK/scripts/doctor.js
 
-# 1) 先侦察：结构、样式、编号、骨架
+# ② 先侦察：结构、样式、编号、骨架
 node $SK/scripts/overview.js 我的文档.docx
 node $SK/scripts/inspect_bookmarks.js 我的文档.docx   # 书签 + 所有引用 + 悬空引用（有问题则 exit 1）
 
-# 2) 单步设计：一份 config，先干跑不落盘，再落盘（输出新文件，原文件不动）
+# ③ 单步设计：一份 config，先干跑不落盘，再落盘（输出新文件，原文件不动）
 node $SK/scripts/apply.js --dry-run my.config.json
 node $SK/scripts/apply.js my.config.json
 python $SK/scripts/extend/extend.py extend.config.json   # 目录 / 水印 / 脚注 / 图表 …
 
-# 3) 或者：把上面几步声明成一条链路，一条命令跑完（推荐）
+# ④ 或者：把上面几步声明成一条链路，一条命令跑完（推荐）
 node $SK/scripts/pipeline.js build.json          # 任一步失败即中止，末尾自动双校验
 node $SK/scripts/pipeline.js build.json --plan   # 只看将要执行什么，不落盘
 
-# 4) 交付门：断言 + 变更清单
+# ⑤ 交付门：断言 + 变更清单
 node $SK/scripts/verify.js verify.json                     # 断言失败 → exit 1，交付阻断
 node $SK/scripts/verify.js out.docx --diff 源文档.docx      # 列出本次改了什么，逐条核对
 ```
@@ -202,14 +233,188 @@ node $SK/scripts/batch_fill.js 合同模板.docx 客户.csv \
 
 ## 设计原则
 
-- **原文件永不被修改。** 每个写盘命令产出新副本，原文件保持原样。
-- **稀疏声明。** 只声明坏掉的、缺失的、或用户明确要改的部分；没碰的样式 / 编号 / 段落原样保留。
-- **先校验再交付。** 两个校验器检查不同层（Node schema 层 vs XSD + OPC 包图层），都要过。
-- **多步链路必须由机器串起来。** 靠人记着"改完内容源要重跑配置生成"是最容易翻车的地方：源头没重跑，写入器会拿着**上一版配置**写出文件，而后面每一道校验都报 PASS。链路声明一次，跑一次。
-- **"格式合规"不等于"可以交付"。** 用户没要求的改动（页脚多一行书名、多加一行署名）是合规的 XML，也是缺陷。断言管机械那一半，读变更清单管剩下那一半。
-- **看不见的对象要专门查。** 书签没有渲染、没有样式、不加字数：丢一个，文件照样打开、照样通过 XSD，只有 Word 在某句话中间印出"错误！未定义书签。"。`inspect_bookmarks`（人工查看）与 `refsResolve`（机器守门）是唯一会去看它的两处。
-- **内容与结构分离。** 标题 / 列表 / 题注这类"结构信号"由样式、编号、SEQ 域渲染，不写死在文本里。
-- **主控只放规则，细节按需加载。** `SKILL.md` 每次触发都会全量进入上下文，所以它只承载"必须当场知道"的东西：主流程、硬规则、路由索引。长表与语义细节住在 `references/`，用到才读。一条规则只在**一处**定义，别处只做指向 —— `tests/run.mjs` 用契约清单守住这条线：规则可以换个文件放，但不能凭空消失。
+1. **原文件永不被修改。** 每个写盘命令产出新副本，原文件保持原样。
+2. **稀疏声明。** 只声明坏掉的、缺失的、或用户明确要改的部分；没碰的样式 / 编号 / 段落原样保留。
+3. **先校验再交付。** 两个校验器检查不同层（Node schema 层 vs XSD + OPC 包图层），都要过。
+4. **多步链路必须由机器串起来。** 靠人记着"改完内容源要重跑配置生成"是最容易翻车的地方：源头没重跑，写入器会拿着**上一版配置**写出文件，而后面每一道校验都报 PASS。链路声明一次，跑一次。
+5. **"格式合规"不等于"可以交付"。** 用户没要求的改动（页脚多一行书名、多加一行署名）是合规的 XML，也是缺陷。断言管机械那一半，读变更清单管剩下那一半。
+6. **看不见的对象要专门查。** 书签没有渲染、没有样式、不加字数：丢一个，文件照样打开、照样通过 XSD，只有 Word 在某句话中间印出"错误！未定义书签。"。`inspect_bookmarks`（人工查看）与 `refsResolve`（机器守门）是唯一会去看它的两处。
+7. **内容与结构分离。** 标题 / 列表 / 题注这类"结构信号"由样式、编号、SEQ 域渲染，不写死在文本里。
+8. **主控只放规则，细节按需加载。** `SKILL.md` 每次触发都会全量进入上下文，所以它只承载"必须当场知道"的东西：主流程、硬规则、路由索引。长表与语义细节住在 `references/`，用到才读。一条规则只在**一处**定义，别处只做指向 —— `tests/run.mjs` 用契约清单守住这条线：规则可以换个文件放，但不能凭空消失。
+
+## 开发规范
+
+### 提交规范（Conventional Commits）
+
+提交信息统一格式：`<type>(<scope>)!: <说明>`，中英文皆可，**说明用祈使句、不加句号**。
+
+| type | 用途 | 例子 |
+|---|---|---|
+| `feat` | 新增能力（新的 op / 工具 / 断言类型） | `feat: 书签与交叉引用 —— 分析核心 / 写入能力 / 侦察工具 / 交付门断言` |
+| `fix` | 修缺陷 | `fix: 新建 pgMar 补齐 XSD 必填属性（gutter 缺失导致 schema 校验失败）` |
+| `docs` | 文档、README、注释 | `docs: README 增加版本区与文档索引` |
+| `refactor` | 不改行为的重构 | `refactor: 主控瘦身 43.8% + 回归测试契约` |
+| `test` | 只动测试 / 契约清单 | `test: 补 verify.js 断言类型的 smoke case` |
+| `chore` | 依赖、脚本、CI、杂务 | `chore: .gitignore 补编辑器目录与本地运行产物` |
+| `revert` | 回撤既有提交 | `revert!: 回撤协议变更，维持 MIT 授权` |
+
+① **scope 可省**，涉及具体子系统时写：`feat(extend)`、`fix(verify)`、`docs(readme)`。
+
+② **`!` 表示破坏性变更**（`feat!:` / `chore!:`），并必须在 body 里写清**影响面与迁移方式** —— 例如 op 被移出注册表、协议变更、默认行为翻转。
+
+③ **body 用 `-` 列点**，一条一项，说清"改了什么 / 为什么"。单行改动能表达清楚时可以省。
+
+```text
+feat!: 版本拆分 —— 标准版保留日常办公/论文/实训报告能力，8 个扩展 op 移交 pro 版
+
+- OPERATIONS 24 项收敛到 16 项，函数体保留
+- 新增 UNSUPPORTED_OPS，误调用明确报错并列出可用操作
+- 迁移：需要水印/形状/图表请 git checkout pro
+```
+
+④ **一次提交一件事**。代码 + 对应测试 + CHANGELOG 同一提交；纯文档润色单独提。
+
+⑤ **两个分支同步**：`main` 与 `pro` 共用代码，改动落到 `main` 后
+`git checkout pro && git checkout main -- <改过的文件>` 再提一次，提交信息后缀 `（pro 分支同步）`。
+
+### 代码与文档硬约束
+
+| 约束 | 怎么守 |
+|---|---|
+| `SKILL.md` ≤ 20000 B | `node tests/run.mjs` 会卡；塞不下就下移到 `references/` 并留一行指向 |
+| **一条规则只在一处定义** | 规则进 `tests/contract.json` 契约清单，删了测试就红 |
+| 写盘命令必须产出**新文件** | code review + 回归用例 |
+| 所有文档内链（含锚点）可解析 | `node tests/run.mjs` 的「链接」类契约 |
+| 新增能力同步补契约与 CHANGELOG | 见 [CONTRIBUTING.md](CONTRIBUTING.md)「开发流程」 |
+
+### 提交前自检
+
+```bash
+node tests/run.mjs --smoke     # 结构 + 规则 + 资源 + 链接 四类契约 + smoke case
+```
+
+贡献流程、缺陷报告格式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 常见问题 FAQ
+
+<details>
+<summary><b>① 需要装 Microsoft Word 或 LibreOffice 吗？</b></summary>
+
+主链路**都不需要**。生成 / 读取 / 编辑 / 校验只靠 Node 标准库 + Python `lxml`。
+只有这两个可选能力才需要外部工具：旧版 `.doc` → `.docx` 转换（LibreOffice）、渲染成图做视觉复核（LibreOffice + Poppler）。
+`node scripts/doctor.js` 会告诉你本机哪些可选项真的可用。
+
+</details>
+
+<details>
+<summary><b>② 会改动我的原文件吗？</b></summary>
+
+**不会。** 每个写盘命令都产出新文件，原文件一个字节都不动。`verify.js --diff` 做对比时也是读原文件、只产出报告。
+
+</details>
+
+<details>
+<summary><b>③ 目录生成了但打开是空的 / 页码没显示？</b></summary>
+
+这是 OOXML 的固有行为，**不是缺陷**。TOC / 页码 / SEQ 都是**域（field）**，Word 打开时按缓存值显示；
+域代码已写入，但结果页需要 Word 计算。
+
+处理方式：打开后 `Ctrl+A` → `F9`（或右键目录 → 更新域）刷新一次。WPS 同理。
+这也是为什么 README 里说"域会生成，但需在 Word 里更新域才算出结果"。
+
+</details>
+
+<details>
+<summary><b>④ 「错误！未定义书签。」是什么？</b></summary>
+
+有个 REF 域或页内跳转链接指向了**不存在的书签**。这种问题 XSD 查不出来、Word 只在正文里印一行字。
+
+先用侦察工具确认：
+
+```bash
+node scripts/inspect_bookmarks.js 我的文档.docx   # 书签 + 所有引用 + 悬空引用，有问题 exit 1
+```
+
+再用 `verify` 的 `refsResolve` / `bookmarkProblems` 断言把它挡在交付前。
+
+</details>
+
+<details>
+<summary><b>⑤ 标准版和 pro 版怎么选？切过去要重装吗？</b></summary>
+
+不用重装，同一个仓库两个分支：
+
+```bash
+cd ~/.workbuddy/skills/docx-master
+git checkout pro     # 全功能（含水印 / 形状 / 图表 / OLE / 智能图形…）
+git checkout main    # 标准版（默认）
+```
+
+日常办公、论文、实训报告用标准版就够；要水印、形状、图表再切 `pro`。清单见 [`references/pro-only-ops.md`](references/pro-only-ops.md)。
+
+</details>
+
+<details>
+<summary><b>⑥ 标准版里误用了 pro 才有的操作会怎样？</b></summary>
+
+**明确报错，不会静默降级**。被剥离的 8 个 op 函数体仍在代码里，只是没注册进 `OPERATIONS`；
+调用时会 `exit` 并列出标准版可用的 16 项操作，同时提示怎么切到 pro 分支。
+
+</details>
+
+<details>
+<summary><b>⑦ 中文排版（首行缩进、字体、间距）默认是什么？</b></summary>
+
+正文默认两字符首行缩进（`firstLineIndent: "2char"`）、CJK 字体与字号按中文公文 / 论文习惯配置，
+中英文之间是否自动加空格由 `lint.panguSpacing` 控制（默认静默）。
+具体字段见 [`references/config-schema.md`](references/config-schema.md) 与 [`references/chinese-font-sizes.md`](references/chinese-font-sizes.md)。
+
+</details>
+
+<details>
+<summary><b>⑧ 能批量生成吗（一份模板 → N 份文档）？</b></summary>
+
+能，这是 Word 邮件合并的替代品：
+
+```bash
+node scripts/batch_fill.js 合同模板.docx 客户.csv \
+  --out-dir out/ --name "{{编号}}-{{客户名称}}.docx" --validate
+```
+
+模板里放占位符，CSV / JSON 每行产出一份成品，`--validate` 逐份跑校验。
+
+</details>
+
+<details>
+<summary><b>⑨ 处理涉密 / 内部文档安全吗？</b></summary>
+
+全程本地：不联网、不上传云转换、不执行文档里的宏和 OLE 载荷。详见 [隐私与安全](#隐私与安全) 与 [SECURITY.md](SECURITY.md)。
+处理来源不明的文档时，仍建议在隔离环境跑（和打开陌生 Word 文档的常识一致）。
+
+</details>
+
+<details>
+<summary><b>⑩ 支持 PDF / xlsx / Markdown 吗？</b></summary>
+
+**不做**。这是 docx 专用技能：PDF、表格（xlsx）、纯文本 / Markdown 源文件都不在范围内
+（除非任务本身就是**输出** docx）。详见 [适用边界](#适用边界)。
+
+</details>
+
+<details>
+<summary><b>⑪ 布局表格能重排结构吗？</b></summary>
+
+不能直接重排表格结构（增删行 / 合并单元格的整体重排），但**单元格内的段落可以正常编辑**。
+这是刻意划的边界：结构重排的失败模式太多，交给人在 Word 里做更稳。
+
+</details>
+
+<details>
+<summary><b>⑫ 可以商用吗？</b></summary>
+
+可以。[MIT](LICENSE) 许可，自由使用、修改、分发、商用，**保留版权与许可声明**即可。
+
+</details>
 
 ## 目录结构
 

@@ -19,13 +19,22 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 ![pro](https://img.shields.io/badge/pro-watermarks%20·%20shapes%20·%20charts%20·%20OLE-805ad5)
 ![deps](https://img.shields.io/badge/main%20chain-zero%20deps%20Node%20%2B%20lxml-orange)
 
-[CHANGELOG](CHANGELOG.md) · [Security](SECURITY.md) · [pro-only ops](references/pro-only-ops.md) · [Regression tests](tests/README.md) · [Contributing](CONTRIBUTING.md)
+[FAQ](README_EN.md#frequently-asked-questions) · [Changelog](CHANGELOG.md) · [Dev conventions](README_EN.md#development-conventions) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
 > 🤖 **AI / developers: read [SKILL.md](SKILL.md) first** (main flow, hard rules, routing index) — don't scan the whole repo first.
 
 **Author**: Zoros ([Zok66](https://github.com/Zok66)) · MIT-licensed, free to use / modify / sell commercially (just keep the copyright notice)
+
+## Contents
+
+- ① [Highlights](#highlights) — why this exists, in one pass
+- ② [Privacy & Security](#privacy--security) · [Two editions](#two-editions) — local-only processing; standard vs pro boundary
+- ③ [Version & Changelog](#version--changelog) · [Documentation index](#documentation-index) — current release, recent changes, every doc
+- ④ [Capabilities](#capabilities) · [Install](#install) · [Quick start](#quick-start) — what it does, how to install, four commands
+- ⑤ [Design principles](#design-principles) · [Development conventions](#development-conventions) · [FAQ](#frequently-asked-questions) — why, how to commit, common pitfalls
+- ⑥ [Repository layout](#repository-layout) · [Regression tests](#regression-tests) · [Dependencies](#dependencies) · [Scope](#scope) · [License](#license)
 
 ## Highlights
 
@@ -47,11 +56,17 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 - When processing **untrusted** docx files, run in an isolated environment (same common sense as opening unknown Word documents)
 - Report vulnerabilities privately — see [SECURITY.md](SECURITY.md)
 
-No Microsoft Word dependency, no LibreOffice dependency, no npm `docx` package. Unzip the `.docx`,
-edit the XML inside, zip it back — so it can do far more than "what a library API can wrap":
-paragraph-level restyling, multi-level auto-numbering, TOC fields, footnotes & endnotes, page borders,
-content controls, batch mail-merge; the `pro` branch goes further with watermarks, shapes, canvas,
-SmartArt, charts and OLE.
+No Microsoft Word, no LibreOffice, no npm `docx` package. Unzip the `.docx`, edit the XML inside,
+zip it back — which is why it can do far more than "what a library API can wrap". Three columns say it plainly:
+
+| ① Not depending on | ② Replaced by | ③ So you can |
+|---|---|---|
+| Microsoft Word | Reading/writing OOXML directly (ECMA-376 / ISO 29500) | Restyle paragraphs, multi-level auto-numbering, TOC fields, page borders, content controls, mail-merge |
+| LibreOffice | Node stdlib + Python `lxml` for the main chain | Run headless in CI, sandboxes, and servers — no GUI, no COM |
+| npm `docx` package | Hand-written `w:p` / `w:tbl` / `w:sdt` | Touch corners no library wraps; never blocked by API expressiveness |
+| Cloud conversion services | Everything local | Documents never leave the machine — safe for internal material |
+
+The `pro` branch goes further: watermarks, shapes, canvas, SmartArt, charts, OLE.
 
 The original file is never modified: every write command produces a new file, validated before it lands.
 
@@ -91,7 +106,7 @@ The 8 stripped `extend` ops **still exist in the code** (just not registered in 
 calling them fails loudly with the 16 available ops listed — never a silent downgrade.
 See [`references/pro-only-ops.md`](references/pro-only-ops.md) for the list and history.
 
-## Version
+## Version & Changelog
 
 - **Current: [v0.16.0](https://github.com/Zok66/docx-master/releases/tag/v0.16.0)** (2026-10-20, first standard-edition release).
 - **License**: [MIT](LICENSE) — free to use, modify, distribute, and use commercially; keep the copyright and permission notice.
@@ -99,15 +114,30 @@ See [`references/pro-only-ops.md`](references/pro-only-ops.md) for the list and 
 - **Download**: pick Latest from [Releases](https://github.com/Zok66/docx-master/releases); each release ships a capability list and acceptance record.
 - **History**: [Releases](https://github.com/Zok66/docx-master/releases).
 
-What changed vs previous releases:
+### At a glance
 
-| Previous release | Highlights of this one |
-|---|---|
-| v0.15.0 / rounds 13–15 | 31 run/paragraph format fields + pinyin annotation (`w:ruby`) engineized; WPS "Insert" tab alignment (docPartObj content controls + glossary cover layout); three comment-anchor fixes |
-| v0.15.0-pro | Full-featured edition frozen into the `pro` branch: watermarks, shapes, canvas, SmartArt, charts, OLE, building blocks, custom XML |
-| Round 10 and earlier | Delivery-gate false positives / XSD leaks / silent failures fixed, skill restructure, bookmarks & cross-references, `batch_fill` mail-merge |
+| Release | Positioning | Branch | Key changes |
+|---|---|---|---|
+| **v0.16.0** ⬅ current | Standard · everyday office / theses / lab reports | `main` | Edition split, community files, star history, bilingual README |
+| v0.16.0-pro | Full-featured · watermarks / shapes / charts / OLE | `pro` | Same code + all 24 `extend` ops |
+| v0.15.0 | Last pre-split release (full-featured) | — | 31 format fields, pinyin annotation, WPS "Insert" alignment |
+| Earlier | — | — | See rounds 5–15 in [CHANGELOG.md](CHANGELOG.md) |
 
-Full history in [`CHANGELOG.md`](CHANGELOG.md).
+### Changelog
+
+Full record lives in **[`CHANGELOG.md`](CHANGELOG.md)** — capability and behaviour changes only
+(new fields / fixed defects / clarified boundaries), never documentation polish. Every entry maps to
+code in `apply.js` or `scripts/extend/*.py`.
+
+Last three entries:
+
+| Date | Release | Summary |
+|---|---|---|
+| 2026-10-20 | — | License reverted to MIT (a brief PolyForm NC change was rolled back; `LICENSE` matches v0.16.0) |
+| 2026-10-20 | **v0.16.0** | ① standard / pro split (`OPERATIONS` 16 vs 24) ② 8 ops stripped with loud errors ③ bilingual README, community files, star history |
+| 2026-10-20 | v0.15.0 | ① 31 run/paragraph fields + pinyin (ruby) ② WPS "Insert" alignment ③ three comment-anchor fixes |
+
+Release procedure (tag → dual-platform release → verification) is documented in [`Push-Sync.markdown`](Push-Sync.markdown).
 
 ## Documentation index
 
@@ -156,23 +186,23 @@ git clone https://github.com/Zok66/docx-master.git ~/.workbuddy/skills/docx-mast
 ```bash
 SK=~/.workbuddy/skills/docx-master
 
-# 0) Before anything: probe environment capabilities (what's really available, what degrades)
+# ① Before anything: probe environment capabilities (what's really available, what degrades)
 node $SK/scripts/doctor.js
 
-# 1) Recon first: structure, styles, numbering, skeleton
+# ② Recon first: structure, styles, numbering, skeleton
 node $SK/scripts/overview.js my-doc.docx
 node $SK/scripts/inspect_bookmarks.js my-doc.docx   # bookmarks + references + dangling ones (exit 1 on problems)
 
-# 2) Single-step design: one config — dry-run first, then write (new file; original untouched)
+# ③ Single-step design: one config — dry-run first, then write (new file; original untouched)
 node $SK/scripts/apply.js --dry-run my.config.json
 node $SK/scripts/apply.js my.config.json
 python $SK/scripts/extend/extend.py extend.config.json   # TOC / notes / charts …
 
-# 3) Or: declare the whole chain and run it in one command (recommended)
+# ④ Or: declare the whole chain and run it in one command (recommended)
 node $SK/scripts/pipeline.js build.json          # aborts on first failure, auto-validates at the end
 node $SK/scripts/pipeline.js build.json --plan   # just show what would run, write nothing
 
-# 4) Delivery gate: assertions + change manifest
+# ⑤ Delivery gate: assertions + change manifest
 node $SK/scripts/verify.js verify.json                     # failed assertion → exit 1, delivery blocked
 node $SK/scripts/verify.js out.docx --diff source.docx     # list what changed, line by line
 ```
@@ -209,14 +239,192 @@ node $SK/scripts/batch_fill.js contract-template.docx clients.csv \
 
 ## Design principles
 
-- **The original file is never modified.** Every write command produces a new copy; the source stays untouched.
-- **Sparse by design.** Declare only what's broken, missing, or explicitly requested; untouched styles / numbering / paragraphs stay as they are.
-- **Validate before delivering.** Two validators check different layers (Node schema vs XSD + OPC package graph); both must pass.
-- **Multi-step chains must be machine-orchestrated.** Relying on a human to remember "re-run the config source after editing" is how stale intermediates ship: the writer uses the **previous config** while every later validator reports PASS. Declare the chain once, run it once.
-- **"Schema-valid" ≠ "deliverable".** Unrequested changes (an extra title line in the footer, an extra signature) are valid XML — and defects. Assertions handle the mechanical half; reading the change manifest handles the rest.
-- **Invisible objects need dedicated checks.** Bookmarks render nothing, carry no style, add no word count: lose one and the file still opens, still passes XSD — until Word prints "Error! Bookmark not defined." mid-sentence. `inspect_bookmarks` (human) and `refsResolve` (machine) are the only two places that look.
-- **Content and structure are separate.** Structural signals — headings, lists, captions — are rendered by styles, numbering and SEQ fields, never typed as literal text.
-- **The master file holds rules only; details load on demand.** `SKILL.md` enters context in full on every trigger, so it carries only what must be known immediately: main flow, hard rules, routing index. Long tables and semantic detail live in `references/`, read when needed. Every rule is defined in **exactly one** place; everything else points at it — `tests/run.mjs` guards this with a contract list: rules may move files, but must never vanish.
+1. **The original file is never modified.** Every write command produces a new copy; the source stays untouched.
+2. **Sparse by design.** Declare only what's broken, missing, or explicitly requested; untouched styles / numbering / paragraphs stay as they are.
+3. **Validate before delivering.** Two validators check different layers (Node schema vs XSD + OPC package graph); both must pass.
+4. **Multi-step chains must be machine-orchestrated.** Relying on a human to remember "re-run the config source after editing" is how stale intermediates ship: the writer uses the **previous config** while every later validator reports PASS. Declare the chain once, run it once.
+5. **"Schema-valid" ≠ "deliverable".** Unrequested changes (an extra title line in the footer, an extra signature) are valid XML — and defects. Assertions handle the mechanical half; reading the change manifest handles the rest.
+6. **Invisible objects need dedicated checks.** Bookmarks render nothing, carry no style, add no word count: lose one and the file still opens, still passes XSD — until Word prints "Error! Bookmark not defined." mid-sentence. `inspect_bookmarks` (human) and `refsResolve` (machine) are the only two places that look.
+7. **Content and structure are separate.** Structural signals — headings, lists, captions — are rendered by styles, numbering and SEQ fields, never typed as literal text.
+8. **The master file holds rules only; details load on demand.** `SKILL.md` enters context in full on every trigger, so it carries only what must be known immediately: main flow, hard rules, routing index. Long tables and semantic detail live in `references/`, read when needed. Every rule is defined in **exactly one** place; everything else points at it — `tests/run.mjs` guards this with a contract list: rules may move files, but must never vanish.
+
+## Development conventions
+
+### Commit convention (Conventional Commits)
+
+Every message follows `<type>(<scope>)!: <description>`. Chinese or English both fine — use the imperative, no trailing period.
+
+| type | Purpose | Example |
+|---|---|---|
+| `feat` | New capability (op / tool / assertion type) | `feat: bookmarks and cross-references — core analysis, writer, inspection tools, delivery-gate assertions` |
+| `fix` | Defect fix | `fix: pgMar on new documents now carries required XSD attributes (missing gutter failed schema validation)` |
+| `docs` | Docs, README, comments | `docs: README gains a version section and doc index` |
+| `refactor` | Restructure without behaviour change | `refactor: trim master file 43.8%, add regression contracts` |
+| `test` | Tests / contract list only | `test: add smoke cases for verify.js assertion types` |
+| `chore` | Deps, scripts, CI, housekeeping | `chore: .gitignore covers editor dirs and local build output` |
+| `revert` | Roll back an earlier commit | `revert!: roll back license change, stay on MIT` |
+
+① **`scope` is optional** — add it for a subsystem: `feat(extend)`, `fix(verify)`, `docs(readme)`.
+
+② **`!` marks a breaking change** (`feat!:`, `chore!:`) and the body **must** state the blast radius and migration path — e.g. an op removed from the registry, a licence change, a default flipped.
+
+③ **Body uses `-` bullets**, one item each, covering *what* and *why*. Omit it when the subject already says everything.
+
+```text
+feat!: split editions — standard keeps everyday office / thesis / lab-report capability, 8 extend ops move to pro
+
+- OPERATIONS narrows from 24 to 16 entries, function bodies kept
+- new UNSUPPORTED_OPS makes misuse fail loudly with the available list
+- migration: need watermarks/shapes/charts? git checkout pro
+```
+
+④ **One commit, one thing.** Code + its tests + CHANGELOG land together; pure doc polish goes separately.
+
+⑤ **Keep branches in sync**: `main` and `pro` share code. After landing on `main`,
+run `git checkout pro && git checkout main -- <changed files>` and commit again with a `(pro sync)` suffix.
+
+### Hard constraints
+
+| Constraint | How it is enforced |
+|---|---|
+| `SKILL.md` ≤ 20000 B | `node tests/run.mjs` fails the build; overflow moves to `references/` with a pointer left behind |
+| **One rule, one definition** | Rules are listed in `tests/contract.json`; delete one and tests go red |
+| Write commands must produce a **new file** | Code review + regression cases |
+| All internal links (anchors included) must resolve | The "links" contract class in `node tests/run.mjs` |
+| New capability → contract entry + CHANGELOG | See [CONTRIBUTING.md](CONTRIBUTING.md) |
+
+### Before you commit
+
+```bash
+node tests/run.mjs --smoke     # structure + rules + resources + links contracts, plus smoke cases
+```
+
+Contribution flow and bug-report format: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Frequently asked questions
+
+<details>
+<summary><b>① Do I need Microsoft Word or LibreOffice?</b></summary>
+
+**Neither** for the main chain. Generate / read / edit / validate run on Node stdlib + Python `lxml`.
+Only two optional capabilities need externals: legacy `.doc` → `.docx` conversion (LibreOffice) and
+render-to-image for visual review (LibreOffice + Poppler). `node scripts/doctor.js` reports what is actually available.
+
+</details>
+
+<details>
+<summary><b>② Will it modify my source file?</b></summary>
+
+**Never.** Every write command produces a new file; the source is byte-for-byte untouched.
+`verify.js --diff` reads the original but only emits a report.
+
+</details>
+
+<details>
+<summary><b>③ The TOC came out empty / page numbers don't show?</b></summary>
+
+That is inherent OOXML behaviour, **not a defect**. TOC, page numbers and SEQ are **fields**: Word
+renders the cached value on open. The field code is written; the rendered result needs Word's calculation.
+
+Fix: open the file, `Ctrl+A` then `F9` (or right-click the TOC → Update Field). Same in WPS.
+
+</details>
+
+<details>
+<summary><b>④ What is "Error! Bookmark not defined."?</b></summary>
+
+A REF field or internal link points at a **bookmark that does not exist**. XSD cannot see this and Word
+only prints a line of text in the middle of a sentence.
+
+```bash
+node scripts/inspect_bookmarks.js my-doc.docx   # bookmarks + all references + dangling ones, exit 1 on problems
+```
+
+Then gate it with the `refsResolve` / `bookmarkProblems` assertions in `verify`.
+
+</details>
+
+<details>
+<summary><b>⑤ Standard or pro — do I reinstall to switch?</b></summary>
+
+No reinstall; one repo, two branches:
+
+```bash
+cd ~/.workbuddy/skills/docx-master
+git checkout pro     # full-featured (watermarks / shapes / charts / OLE / SmartArt…)
+git checkout main    # standard (default)
+```
+
+Everyday office work, theses and lab reports are covered by the standard edition. See
+[`references/pro-only-ops.md`](references/pro-only-ops.md) for the difference list.
+
+</details>
+
+<details>
+<summary><b>⑥ What if I call a pro-only op on the standard edition?</b></summary>
+
+**A loud error, never a silent downgrade.** The 8 stripped ops still exist in code, just not registered in
+`OPERATIONS`. Calling one exits with the 16 available ops listed plus how to switch to `pro`.
+
+</details>
+
+<details>
+<summary><b>⑦ What are the Chinese typography defaults?</b></summary>
+
+Body text defaults to a two-character first-line indent (`firstLineIndent: "2char"`); CJK fonts and sizes
+follow Chinese document / thesis conventions. Automatic spacing between CJK and Latin text is controlled
+by `lint.panguSpacing` (silent by default). Fields are documented in
+[`references/config-schema.md`](references/config-schema.md) and [`references/chinese-font-sizes.md`](references/chinese-font-sizes.md).
+
+</details>
+
+<details>
+<summary><b>⑧ Can it batch-generate documents?</b></summary>
+
+Yes — it replaces Word mail merge:
+
+```bash
+node scripts/batch_fill.js contract-template.docx customers.csv \
+  --out-dir out/ --name "{{id}}-{{customer}}.docx" --validate
+```
+
+Placeholders live in the template; each CSV / JSON row produces one output, and `--validate` checks every file.
+
+</details>
+
+<details>
+<summary><b>⑨ Is it safe for confidential or internal documents?</b></summary>
+
+Everything is local: no network, no cloud conversion, no execution of macros or OLE payloads.
+See [Privacy & Security](#privacy--security) and [SECURITY.md](SECURITY.md). For files of unknown
+origin, still prefer an isolated environment — the same common sense as opening an unknown Word document.
+
+</details>
+
+<details>
+<summary><b>⑩ Does it handle PDF / xlsx / Markdown?</b></summary>
+
+**No.** This is a docx-only skill: PDF, spreadsheets (xlsx) and plain-text / Markdown sources are out of
+scope — unless the task is to **produce** a docx. See [Scope](#scope).
+
+</details>
+
+<details>
+<summary><b>⑪ Can layout tables be restructured?</b></summary>
+
+Table structure cannot be reshuffled wholesale (row insertion/deletion, cell merging as a block), but
+**paragraphs inside cells are fully editable**. That boundary is deliberate: structural rewrites have too
+many failure modes and are safer done by a human in Word.
+
+</details>
+
+<details>
+<summary><b>⑫ Can I use it commercially?</b></summary>
+
+Yes. [MIT](LICENSE) — free to use, modify, distribute and sell commercially, keeping the copyright and
+permission notice.
+
+</details>
 
 ## Repository layout
 
