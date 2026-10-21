@@ -38,7 +38,6 @@
 
 ## 亮点
 
-- **原文件永不被修改** —— 所有写命令产出新副本，写盘前自动双校验（Node schema + XSD/OPC）
 - **生成 · 读取 · 编辑 · 校验全链路，零 npm 依赖** —— 主链路只用 Node 标准库 + Python lxml
 - **规范化**：把"手打的 `一、`/`1.1`"换成真多级自动编号，按角色重塑整篇排版
 - **论文 / 实训报告开箱即用**：目录域、页码、页眉页脚、脚注尾注、题注、交叉引用、引文书目
@@ -52,7 +51,6 @@
 
 - **文档全部在本地处理**，不上传到任何云转换服务
 - **不执行文档内的宏 / OLE 载荷**；不联网（`doctor` 仅探测本地已装工具）
-- 原文件保持原样：每个写盘命令都产出新文件
 - 处理**不受信任来源**的 docx 时，建议在隔离环境运行（与打开陌生 Word 文档的常识一致）
 - 漏洞报告走私密渠道，详见 [SECURITY.md](SECURITY.md)
 
@@ -67,9 +65,6 @@
 | npm `docx` 包 | 自己封 `w:p` / `w:tbl` / `w:sdt` | 库没封装的角落也能改，不被 API 表达力卡住 |
 | 云转换服务 | 全程本地 | 文档不出机器，涉密 / 内部资料可用 |
 
-pro 分支更进一步覆盖水印、形状、画布、智能图形、图表、OLE。
-
-原文件永不被修改：每个写盘命令都产出新文件，且在写入前跑校验。
 
 ## 两个版本
 
@@ -91,24 +86,13 @@ pro 分支更进一步覆盖水印、形状、画布、智能图形、图表、O
 | 构建基块（自动图文集）/ 自定义 XML | — | ✅ |
 | PRO 完整 XSD 架构集（全套 schema 校验） | 精简 | 全套 |
 
-```bash
-# 标准版（默认，克隆即得）
-git clone https://github.com/Zok66/docx-master.git ~/.workbuddy/skills/docx-master
-
-# pro 版（全功能）
-cd ~/.workbuddy/skills/docx-master && git checkout pro
-
-# 切回标准版
-git checkout main
-```
-
-被剥离的 8 个 `extend` op 在**代码里仍在**（只是没注册进 `OPERATIONS`），调用会明确报错并提示可用的 16 项操作——不会静默降级。清单与历史实现见 [`references/pro-only-ops.md`](references/pro-only-ops.md)。
+装法与版本切换见「[安装](#安装)」。被剥离的 8 个 `extend` op 在**代码里仍在**（只是没注册进 `OPERATIONS`），调用会明确报错并提示可用的 16 项操作——不会静默降级。清单与历史实现见 [`references/pro-only-ops.md`](references/pro-only-ops.md)。
 
 ## 版本与更新日志
 
 - **当前版本：[v0.16.0](https://github.com/Zok66/docx-master/releases/tag/v0.16.0)**（2026-10-20，标准版首发）。
 - **协议**：[MIT](LICENSE) —— 自由使用、修改、分发与商业使用，保留版权与许可声明即可。
-- **升级**：技能目录内 `git pull` 覆盖安装；升级前建议跑一遍 `node tests/run.mjs` 确认环境契约完好。
+- **升级**：技能目录内 `git pull` 覆盖安装，完成后按「[回归测试](#回归测试)」跑一遍自检。
 - **本次下载**：以 [Releases](https://github.com/Zok66/docx-master/releases) 页 Latest 为准，每个版本附能力清单与验收记录。
 - **历史版本**：[Releases](https://github.com/Zok66/docx-master/releases)。
 
@@ -160,7 +144,7 @@ git checkout main
 | **生成** | 省略 `source` 即以内置空白模板脚手架一篇新文档；也可从现有模板导入样式与编号 |
 | **规范化** | 按角色重塑整篇文档：段落分类 → 绑定命名样式 → 安装多级自动编号，把"手打的 `一、`/`1.1`"换成真编号 |
 | **编辑** | 定位式外科手术：替换 / 插入 / 删除段落、表格单元格、嵌入图片，可选生成修订痕迹 |
-| **扩展** | `extend` 补引擎"故意不写"的部分：目录 / 图表目录 / 索引域、分页分节、页码、命名书签、脚注尾注、页面边框与背景、插入图片、内容控件、封面页、引文书目。水印 / 形状 / 图表 / OLE / 智能图形 / 构建基块 / 自定义 XML 属 pro 版 |
+| **扩展** | `extend` 补引擎"故意不写"的部分：目录 / 图表目录 / 索引域、分页分节、页码、命名书签、脚注尾注、页面边框与背景、插入图片、内容控件、封面页、引文书目。水印 / 形状 / 图表 / OLE / 智能图形等属 pro 版（见「[两个版本](#两个版本)」）|
 | **书签 / 交叉引用** | 建命名书签（新建段落、已有段落、跨段区间三种入口）、`refTo` → REF 域交叉引用、`{ "link": "#名字" }` 页内跳转；并用 `inspect_bookmarks` + `refsResolve` 断言抓"引用指向不存在的书签"这类**看不见的缺陷** |
 | **批量** | 一份模板 + 一张 CSV / JSON 数据表 → 每行一份成品（Word 邮件合并的替代品） |
 | **编排** | `pipeline`：把「生成配置 → apply → extend → 校验 → 断言」声明成一条链路，**一条命令跑完**，任一步失败立即中止——不留"跑了前半段"的半成品。无子进程环境（沙盒）可 `--emit-script` 生成 `set -e` 脚本，`bash` 一次执行得到同样的中止语义 |
@@ -175,7 +159,14 @@ git checkout main
 作为技能放进你的 skills 目录即可（WorkBuddy / Claude Code 等支持 `SKILL.md` 的环境）：
 
 ```bash
+# 标准版（默认，克隆即得）
 git clone https://github.com/Zok66/docx-master.git ~/.workbuddy/skills/docx-master
+
+# 要全功能版：同一个仓库切分支，不用重装
+cd ~/.workbuddy/skills/docx-master && git checkout pro
+
+# 切回标准版
+git checkout main
 ```
 
 ## 快速开始
@@ -259,17 +250,12 @@ node $SK/scripts/batch_fill.js 合同模板.docx 客户.csv \
 |---|---|
 | `SKILL.md` ≤ 20000 B | `node tests/run.mjs` 会卡；塞不下就下移到 `references/` 并留一行指向 |
 | **一条规则只在一处定义** | 规则进 `tests/contract.json` 契约清单，删了测试就红 |
-| 写盘命令必须产出**新文件** | code review + 回归用例 |
 | 所有文档内链（含锚点）可解析 | `node tests/run.mjs` 的「链接」类契约 |
 | 新增能力同步补契约与 CHANGELOG | 见 [CONTRIBUTING.md](CONTRIBUTING.md)「开发流程」 |
 
 ### 提交前自检
 
-```bash
-node tests/run.mjs --smoke     # 结构 + 规则 + 资源 + 链接 四类契约 + smoke case
-```
-
-贡献流程、缺陷报告格式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+按「[回归测试](#回归测试)」跑 `--smoke` 那一档即可。贡献流程、缺陷报告格式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 常见问题 FAQ
 
@@ -285,7 +271,7 @@ node tests/run.mjs --smoke     # 结构 + 规则 + 资源 + 链接 四类契约 
 <details>
 <summary><b>② 会改动我的原文件吗？</b></summary>
 
-**不会。** 每个写盘命令都产出新文件，原文件一个字节都不动。`verify.js --diff` 做对比时也是读原文件、只产出报告。
+**不会。** 原文件一个字节都不动，`verify.js --diff` 也只读不写。
 
 </details>
 
@@ -296,7 +282,6 @@ node tests/run.mjs --smoke     # 结构 + 规则 + 资源 + 链接 四类契约 
 域代码已写入，但结果页需要 Word 计算。
 
 处理方式：打开后 `Ctrl+A` → `F9`（或右键目录 → 更新域）刷新一次。WPS 同理。
-这也是为什么 README 里说"域会生成，但需在 Word 里更新域才算出结果"。
 
 </details>
 
@@ -318,15 +303,9 @@ node scripts/inspect_bookmarks.js 我的文档.docx   # 书签 + 所有引用 + 
 <details>
 <summary><b>⑤ 标准版和 pro 版怎么选？切过去要重装吗？</b></summary>
 
-不用重装，同一个仓库两个分支：
+不用重装 —— 同一个仓库两个分支，`git checkout pro` / `git checkout main` 即可，命令见「[安装](#安装)」。
 
-```bash
-cd ~/.workbuddy/skills/docx-master
-git checkout pro     # 全功能（含水印 / 形状 / 图表 / OLE / 智能图形…）
-git checkout main    # 标准版（默认）
-```
-
-日常办公、论文、实训报告用标准版就够；要水印、形状、图表再切 `pro`。清单见 [`references/pro-only-ops.md`](references/pro-only-ops.md)。
+日常办公、论文、实训报告用标准版就够；要水印、形状、图表再切 `pro`。完整差异见「[两个版本](#两个版本)」，8 个 op 清单见 [`references/pro-only-ops.md`](references/pro-only-ops.md)。
 
 </details>
 
@@ -350,13 +329,7 @@ git checkout main    # 标准版（默认）
 <details>
 <summary><b>⑧ 能批量生成吗（一份模板 → N 份文档）？</b></summary>
 
-能，这是 Word 邮件合并的替代品：
-
-```bash
-node scripts/batch_fill.js 合同模板.docx 客户.csv \
-  --out-dir out/ --name "{{编号}}-{{客户名称}}.docx" --validate
-```
-
+能，这是 Word 邮件合并的替代品 —— 一条命令，见「[快速开始](#快速开始)」末尾的 `batch_fill.js` 示例。
 模板里放占位符，CSV / JSON 每行产出一份成品，`--validate` 逐份跑校验。
 
 </details>
@@ -416,8 +389,7 @@ docx-master/
 └── pro/                  # 可选的 Python 工具链（批注、接受修订、渲染、XSD 校验）
 ```
 
-`standard` 与 `pro` 两版共用同一套代码，差异只有 `scripts/extend/extend.py` 的
-`OPERATIONS` 注册表（16 vs 24 项）。本节描述的是**标准版**（`main` 分支）的目录。
+本节描述的是**标准版**（`main` 分支）的目录；`pro` 分支结构相同。
 
 ## 回归测试
 
