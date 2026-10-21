@@ -12,8 +12,8 @@
 
 Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · edit · validate**, zero-dependency main chain
 
-![License](https://img.shields.io/badge/License-PolyForm--NC%20non--commercial-red)
-![release](https://img.shields.io/badge/release-v0.17.0-green)
+![License](https://img.shields.io/badge/License-MIT-blue)
+![release](https://img.shields.io/badge/release-v0.16.0-green)
 ![stars](https://img.shields.io/badge/stars-%F0%9F%8C%9F%20%E2%9C%A8-yellow)
 ![standard](https://img.shields.io/badge/standard-everyday%20·%20thesis%20·%20reports-3182ce)
 ![pro](https://img.shields.io/badge/pro-watermarks%20·%20shapes%20·%20charts%20·%20OLE-805ad5)
@@ -25,14 +25,7 @@ Unzip the `.docx`, edit the XML inside, zip it back — **generate · read · ed
 
 > 🤖 **AI / developers: read [SKILL.md](SKILL.md) first** (main flow, hard rules, routing index) — don't scan the whole repo first.
 
-**Author**: Zoros ([Zok66](https://github.com/Zok66))
-
-> ⚠️ **Non-Commercial Notice**: This skill is free for personal use only (study / office work / theses / lab reports).
-> **Commercial sale, resale, paid services, and reselling on marketplaces** (Xianyu / Taobao / Pinduoduo, etc.)
-> are prohibited, as is rebranding and republishing it as your own product. Public forks must credit the
-> original author. Full terms: [LICENSE](LICENSE) (PolyForm Noncommercial 1.0.0).
->
-> ℹ️ GitHub and Gitee do not recognize PolyForm, so the repo sidebar shows "Other" / no license. That is expected — the [LICENSE](LICENSE) file is authoritative.
+**Author**: Zoros ([Zok66](https://github.com/Zok66)) · MIT-licensed, free to use / modify / sell commercially (just keep the copyright notice)
 
 ## Highlights
 
@@ -100,8 +93,8 @@ See [`references/pro-only-ops.md`](references/pro-only-ops.md) for the list and 
 
 ## Version
 
-- **Current: [v0.17.0](https://github.com/Zok66/docx-master/releases/tag/v0.17.0)** (2026-10-20, license change).
-- **License**: [PolyForm Noncommercial 1.0.0](LICENSE) — free for personal use; commercial use requires permission.
+- **Current: [v0.16.0](https://github.com/Zok66/docx-master/releases/tag/v0.16.0)** (2026-10-20, first standard-edition release).
+- **License**: [MIT](LICENSE) — free to use, modify, distribute, and use commercially; keep the copyright and permission notice.
 - **Upgrade**: `git pull` inside the skill directory; run `node tests/run.mjs` afterwards to confirm environment contracts.
 - **Download**: pick Latest from [Releases](https://github.com/Zok66/docx-master/releases); each release ships a capability list and acceptance record.
 - **History**: [Releases](https://github.com/Zok66/docx-master/releases).
@@ -110,8 +103,6 @@ What changed vs previous releases:
 
 | Previous release | Highlights of this one |
 |---|---|
-| v0.17.0 | **License change**: MIT → PolyForm Noncommercial 1.0.0; README gains Highlights & Privacy sections |
-| v0.16.0 | Edition split: standard (`main`) / pro (`pro`); community files, star history, bilingual README |
 | v0.15.0 / rounds 13–15 | 31 run/paragraph format fields + pinyin annotation (`w:ruby`) engineized; WPS "Insert" tab alignment (docPartObj content controls + glossary cover layout); three comment-anchor fixes |
 | v0.15.0-pro | Full-featured edition frozen into the `pro` branch: watermarks, shapes, canvas, SmartArt, charts, OLE, building blocks, custom XML |
 | Round 10 and earlier | Delivery-gate false positives / XSD leaks / silent failures fixed, skill restructure, bookmarks & cross-references, `batch_fill` mail-merge |
@@ -129,7 +120,7 @@ Full history in [`CHANGELOG.md`](CHANGELOG.md).
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Code of conduct |
 | [`SECURITY.md`](SECURITY.md) | Security policy: supported versions, private vulnerability reporting, threat model |
 | [`tests/README.md`](tests/README.md) | Running regression tests, adding rules / cases |
-| [`LICENSE`](LICENSE) | PolyForm Noncommercial 1.0.0 (incl. historical MIT grant note) |
+| [`LICENSE`](LICENSE) | MIT license |
 | [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Third-party notices (Temml / ECMA-376 XSD provenance & licensing) |
 | [`Push-Sync.markdown`](Push-Sync.markdown) | GitHub ↔ Gitee full-sync guide (branches / tags / releases / license) |
 | [`references/`](references/) | Domain references: config schema, locator contracts, tool tables, numbering formats, captions, formulas … |
@@ -290,19 +281,7 @@ How to add rules and cases: [`tests/README.md`](tests/README.md).
 
 ## License
 
-**[PolyForm Noncommercial 1.0.0](LICENSE)** — non-commercial license; full terms in [`LICENSE`](LICENSE).
-
-| Permitted | Prohibited |
-|---|---|
-| ✅ Personal use (study / office / theses / reports) | ❌ Any commercial use, sale, or paid service |
-| ✅ Copy & redistribute (with this license and credit) | ❌ Reselling on marketplaces |
-| ✅ Modify & build upon (credit the original author) | ❌ Rebranding and passing off as your own product |
-| ✅ Teaching, research, non-profit internal use | ❌ Redistribution without attribution |
-
-**Historical grant**: versions up to v0.16.0 (before commit `291b86a`) were released under MIT;
-rights already granted under MIT remain valid.
-
-**Bundled third-party components** follow their own licenses — see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+MIT
 
 ## Star History
 

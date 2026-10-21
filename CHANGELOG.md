@@ -5,29 +5,11 @@
 
 ---
 
-## 2026-10-20（v0.17.0）—— 协议变更：MIT → PolyForm Noncommercial 1.0.0
+## 2026-10-20 —— 授权确认：维持 MIT
 
-按作者意愿改为**非商用许可**。不是"MIT + 禁止商用"混写（那样自相矛盾：MIT 明确允许商用），
-而是换成专为软件设计的非商用协议 PolyForm Noncommercial 1.0.0（本仓库未做修改引用官方全文）。
-
-### 授权变更
-
-- `LICENSE` 全量替换为 PolyForm NC 1.0.0 官方文本，头部加 `Required Notice`（协议要求的署名行）
-- 允许：个人免费使用、复制传播、修改与二次开发、教学研究与非营利内部使用
-- 禁止：任何商业用途 / 销售 / 收费服务、电商平台倒卖、改名换皮冒充自有产品、未署名的二次分发
-- **历史授权保留**：v0.16.0 及更早（commit `291b86a` 之前）以 MIT 发布的部分，已授予的权利依 MIT
-  继续有效——协议变更不能追溯撤销既得授权
-
-### 文档同步
-
-- README（中/英）徽章 `License-MIT` → `License-PolyForm-NC`；许可章节改「允许 / 禁止」对照表；
-  作者行下加非商用声明块
-- `THIRD-PARTY-NOTICES.md` 原创部分授权表述同步改为 PolyForm NC（Temml 自身的 MIT 声明保留）
-- 新增「亮点」「隐私与安全」两节（参考 FlyingMouse-Format 的呈现方式）
-
-### 回归
-
-`node tests/run.mjs` → **PASS 95/95**
+曾一度改为 PolyForm Noncommercial 1.0.0，后按作者决定**回撤**，版本回到 MIT。
+因此 `LICENSE`、README（中/英）、`THIRD-PARTY-NOTICES.md` 与 v0.16.0 完全一致，
+无任何授权变更；v0.17.0 系列的 Release / tag 一并撤回。
 
 ---
 
