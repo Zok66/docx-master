@@ -93,6 +93,8 @@ git checkout main
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | 行为准则 |
 | [`SECURITY.md`](SECURITY.md) | 安全策略：支持的版本、漏洞私密报告渠道、威胁模型 |
 | [`tests/README.md`](tests/README.md) | 回归测试怎么跑、怎么加规则 / 用例 |
+| [`LICENSE`](LICENSE) | MIT 许可证 |
+| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | 第三方组件声明（Temml / ECMA-376 XSD 的来源与授权） |
 | [`Push-Sync.markdown`](Push-Sync.markdown) | GitHub ↔ Gitee 全量同步指南（分支 / Tag / Release / 许可证） |
 | [`references/`](references/) | 领域参考：配置 schema、定位器契约、工具全表、编号格式、题注、公式 … |
 | [`pro/`](pro/) | 可选 Python 工具链：批注、接受修订、渲染、XSD 校验 |

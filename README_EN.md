@@ -97,6 +97,8 @@ Full history in [`CHANGELOG.md`](CHANGELOG.md).
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Code of conduct |
 | [`SECURITY.md`](SECURITY.md) | Security policy: supported versions, private vulnerability reporting, threat model |
 | [`tests/README.md`](tests/README.md) | Running regression tests, adding rules / cases |
+| [`LICENSE`](LICENSE) | MIT license |
+| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Third-party notices (Temml / ECMA-376 XSD provenance & licensing) |
 | [`Push-Sync.markdown`](Push-Sync.markdown) | GitHub ↔ Gitee full-sync guide (branches / tags / releases / license) |
 | [`references/`](references/) | Domain references: config schema, locator contracts, tool tables, numbering formats, captions, formulas … |
 | [`pro/`](pro/) | Optional Python toolchain: comments, accept revisions, rendering, XSD validation |
