@@ -28,3 +28,14 @@ jobs:
             git commit -m "chore: 更新 Star History 曲线"
             git push
           fi
+      - name: 同步到 Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "未配置 GITEE_TOKEN，跳过 Gitee 同步"
+            exit 0
+          fi
+          git remote add gitee "https://Zok66:${GITEE_TOKEN}@gitee.com/Zok66/docx-master.git"
+          git push gitee HEAD:main 2>&1 | sed "s/${GITEE_TOKEN}/***"
+          git remote remove gitee
