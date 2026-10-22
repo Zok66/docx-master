@@ -37,5 +37,5 @@ jobs:
             exit 0
           fi
           git remote add gitee "https://Zok66:${GITEE_TOKEN}@gitee.com/Zok66/docx-master.git"
-          git push gitee HEAD:main 2>&1 | sed "s/${GITEE_TOKEN}/***"
+          git push gitee HEAD:main
           git remote remove gitee
