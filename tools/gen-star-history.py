@@ -11,7 +11,7 @@ import json
 import os
 import sys
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 REPO = sys.argv[1] if len(sys.argv) > 1 else "Zok66/docx-master"
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
@@ -51,23 +51,38 @@ def cumulative(events):
     return out
 
 
-def to_points(series):
+def to_points(series, axis_max):
+    """把累计序列换算成 SVG 坐标。
+
+    - 纵向以 axis_max（与右侧刻度一致）归一化，避免曲线被自身峰值顶满格；
+    - 起点补一个 0 值台阶，让"0 → 第一颗星"的爬升能看出来。
+    """
     if not series:
         t0 = datetime.now(timezone.utc)
-        return [(t0, 0)], (t0, t0)
+        return [(ML, MT + PH), (ML + PW, MT + PH)], (t0, t0)
     t0, t1 = series[0][0], series[-1][0]
+    # 时间轴起点提前，给"0 → 第一颗星"的台阶留出可见宽度
+    t0 = t0 - timedelta(seconds=3600)
     if (t1 - t0).total_seconds() < 86400:
         t1 = t0.fromtimestamp(t0.timestamp() + 86400, tz=timezone.utc)
     span = (t1 - t0).total_seconds() or 1
-    peak = max(c for _, c in series) or 1
-    pts = []
-    for t, c in series:
-        x = ML + (t - t0).total_seconds() / span * PW
-        y = MT + PH - c / peak * PH
-        pts.append((x, y))
+    scale = axis_max or 1
+
+    def px(t):
+        return ML + (t - t0).total_seconds() / span * PW
+
+    def py(c):
+        return MT + PH - min(c / scale, 1) * PH
+
+    # 起手 0 值台阶：从左侧 0 线水平走到第一颗星之前，再竖直抬起
+    first_t, first_c = series[0]
+    pts = [(ML, py(0)), (px(first_t), py(0))]
+    pts.append((px(first_t), py(first_c)))
+    for t, c in series[1:]:
+        pts.append((px(t), py(c)))
     # 收尾补一个"现在"的点，让曲线顶到右边界
-    lx, ly = pts[-1]
-    pts.append((ML + PW, ly))
+    _, last_c = series[-1]
+    pts.append((ML + PW, py(last_c)))
     return pts, (t0, t1)
 
 
@@ -119,9 +134,9 @@ def render(pts, rng, peak_now, axis_max, dark: bool) -> str:
 def main():
     events = fetch_stars(REPO)
     series = cumulative(events)
-    pts, rng = to_points(series)
     peak_now = series[-1][1] if series else 0
     axis_max = nice_axis(peak_now)
+    pts, rng = to_points(series, axis_max)
     os.makedirs(OUT_DIR, exist_ok=True)
     for name, dark in (("star-history-light.svg", False), ("star-history-dark.svg", True)):
         path = os.path.join(OUT_DIR, name)
