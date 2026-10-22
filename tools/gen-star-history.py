@@ -74,10 +74,9 @@ def to_points(series, axis_max):
     def py(c):
         return MT + PH - min(c / scale, 1) * PH
 
-    # 起手 0 值台阶：从左侧 0 线水平走到第一颗星之前，再竖直抬起
+    # 起手 0 值：从左侧 0 线平滑过渡到第一颗星（同 x 的竖直台阶会破坏样条，不单设点）
     first_t, first_c = series[0]
-    pts = [(ML, py(0)), (px(first_t), py(0))]
-    pts.append((px(first_t), py(first_c)))
+    pts = [(ML, py(0)), (px(first_t), py(first_c))]
     for t, c in series[1:]:
         pts.append((px(t), py(c)))
     # 收尾补一个"现在"的点，让曲线顶到右边界
@@ -92,6 +91,34 @@ def nice_axis(peak: int):
         if peak <= v:
             return v
     return peak
+
+
+def smooth_path(pts):
+    """Catmull-Rom 样条转三次贝塞尔，输出平滑的 SVG path（d 属性）。
+
+    控制点做纵向夹取，避免曲线过冲越过绘图区上下界。
+    """
+    if len(pts) < 2:
+        x, y = pts[0]
+        return f"M {x:.1f} {y:.1f}"
+    top, bottom = MT, MT + PH
+    P = [(x, min(max(y, top), bottom)) for x, y in pts]
+
+    def ry(y):  # 控制点纵向夹取
+        return min(max(y, top), bottom)
+
+    d = f"M {P[0][0]:.1f} {P[0][1]:.1f}"
+    n = len(P)
+    for i in range(n - 1):
+        p0 = P[i - 1] if i > 0 else P[0]
+        p1, p2 = P[i], P[i + 1]
+        p3 = P[i + 2] if i + 2 < n else P[n - 1]
+        c1x = min(max(p1[0] + (p2[0] - p0[0]) / 6, p1[0]), p2[0])
+        c1y = ry(p1[1] + (p2[1] - p0[1]) / 6)
+        c2x = min(max(p2[0] - (p3[0] - p1[0]) / 6, p1[0]), p2[0])
+        c2y = ry(p2[1] - (p3[1] - p1[1]) / 6)
+        d += f" C {c1x:.1f} {c1y:.1f} {c2x:.1f} {c2y:.1f} {p2[0]:.1f} {p2[1]:.1f}"
+    return d
 
 
 def render(pts, rng, peak_now, axis_max, dark: bool) -> str:
@@ -115,8 +142,8 @@ def render(pts, rng, peak_now, axis_max, dark: bool) -> str:
             f'<text x="{x}" y="{MT+PH+30}" font-size="15" fill="{muted}" text-anchor="{"start" if fx == 0 else "end"}">{label}</text>'
         )
 
-    poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
-    area = f"{ML},{MT+PH} " + poly + f" {ML+PW},{MT+PH}"
+    path = smooth_path(pts)
+    area = path + f" L {ML+PW:.1f} {MT+PH} L {ML} {MT+PH} Z"
     asof = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" font-family="-apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
@@ -125,8 +152,8 @@ def render(pts, rng, peak_now, axis_max, dark: bool) -> str:
 <text x="{ML}" y="68" font-size="14" fill="{muted}">{REPO}</text>
 <text x="{W-MR+14}" y="44" font-size="15" fill="{muted}">{peak_now} stars</text>
 {''.join(grid_lines)}
-<polygon points="{area}" fill="{fill}"/>
-<polyline points="{poly}" fill="none" stroke="{line}" stroke-width="2.5" stroke-linejoin="round"/>
+<path d="{area}" fill="{fill}"/>
+<path d="{path}" fill="none" stroke="{line}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="{ML}" y="{H-14}" font-size="13" fill="{muted}">数据截至 {asof} · GitHub stargazers API</text>
 </svg>'''
 
