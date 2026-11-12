@@ -18,7 +18,10 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const argv = process.argv.slice(2);
 const asJson = argv.includes("--json");
@@ -43,7 +46,9 @@ function probe(cmd, args, opts = {}) {
 	}
 }
 
-/** LibreOffice ships under several names and locations; try the likely ones. */
+/** LibreOffice ships under several names and locations; try the likely ones.
+ * Kept in sync with pro/scripts/soffice.py::find_soffice — if one list gains a
+ * location the other should too, or the two probes disagree about the same box. */
 function findSoffice() {
 	const candidates = [
 		"soffice",
@@ -51,7 +56,12 @@ function findSoffice() {
 		"C:/Program Files (x86)/LibreOffice/program/soffice.exe",
 		"/Applications/LibreOffice.app/Contents/MacOS/soffice",
 		"/usr/bin/soffice",
-		"/usr/local/bin/soffice"
+		"/usr/local/bin/soffice",
+		"/usr/bin/libreoffice",
+		"/usr/lib/libreoffice/program/soffice",
+		"/opt/libreoffice/program/soffice",
+		"/snap/bin/libreoffice",
+		"/var/lib/flatpak/exports/bin/org.libreoffice.LibreOffice"
 	];
 	for (const c of candidates) {
 		const isPath = c.includes("/") || c.includes("\\");
@@ -135,6 +145,30 @@ function findPython() {
 	return { ok: false, detail: "not found" };
 }
 
+/**
+ * Ask the Python side for the full renderer matrix (`render.py --probe`).
+ * One source of truth: that script already knows LibreOffice, Windows COM
+ * (Word / WPS), Word for Mac and the three image engines — including the
+ * WPS-registers-as-Word trap and the system32\convert.exe false positive.
+ * Re-implementing the same probe here would drift out of sync the first time
+ * either side changes, and would need Python anyway to resolve identities.
+ */
+function renderProbe(py) {
+	if (!py.ok) return { available: false, reason: "Python unavailable" };
+	const script = join(__dirname, "..", "pro", "scripts", "render.py");
+	if (!existsSync(script)) return { available: false, reason: "render.py missing" };
+	const r = spawnSync(py.cmd, [script, "--probe"], { encoding: "utf8", timeout: 90000 });
+	if (r.error || r.status !== 0 || !r.stdout) {
+		const why = r.error?.code || (r.stderr || "").trim() || "probe failed";
+		return { available: false, reason: String(why).slice(0, 80) };
+	}
+	try {
+		return { available: true, data: JSON.parse(r.stdout) };
+	} catch {
+		return { available: false, reason: "probe output unparsable" };
+	}
+}
+
 const checks = [];
 
 checks.push({
@@ -165,16 +199,65 @@ checks.push({
 });
 if (py.ok && !py.deps) checks[checks.length - 1].res.detail += "  → pip install lxml defusedxml";
 
+const soffice = findSoffice();
 checks.push({
 	name: "LibreOffice (soffice)",
-	why: "legacy .doc → .docx conversion; PDF render for visual self-check",
-	res: findSoffice()
+	why: "legacy .doc → .docx conversion; one of several PDF renderers",
+	res: soffice
+});
+
+const rp = renderProbe(py);
+
+// Renderers the probe found, in its own preference order.
+const pdfRenderers = [];
+if (rp.available && rp.data?.pdf_renderers) {
+	for (const [name, info] of Object.entries(rp.data.pdf_renderers)) {
+		if (info.ok) pdfRenderers.push(`${name}${info.path ? ` (${info.path})` : ""}`);
+	}
+} else if (soffice.ok) {
+	pdfRenderers.push(`soffice (${soffice.cmd || soffice.detail})`);
+}
+
+const imageEngines = [];
+if (rp.available && rp.data?.image_engines) {
+	for (const [name, info] of Object.entries(rp.data.image_engines)) {
+		if (info.ok) imageEngines.push(name);
+	}
+}
+
+const hasCom = rp.available && Object.entries(rp.data?.pdf_renderers || {})
+	.some(([n, v]) => (n === "windows-com" || n === "word-mac") && v.ok);
+
+if (process.platform === "win32" || process.platform === "darwin") {
+	const label = process.platform === "win32" ? "Office COM (Word / WPS)" : "Word for Mac (AppleScript)";
+	checks.push({
+		name: label,
+		why: "render without installing LibreOffice; true identity is resolved at render time",
+		res: !rp.available
+			? { ok: false, detail: rp.reason }
+			: hasCom
+				? {
+						ok: true,
+						detail: "available — `python pro/scripts/render.py --probe --human` prints the resolved identity "
+							+ "(WPS registers under Word.Application and misreports its Name; only Application.Path tells the truth)"
+					}
+				: { ok: false, detail: "neither Word nor WPS registered" }
+	});
+}
+
+checks.push({
+	name: "PDF → image",
+	why: "turn the rendered PDF into pictures the model can actually look at",
+	res: imageEngines.length
+		? { ok: true, detail: imageEngines.join(" · ") }
+		: { ok: false, detail: `none found${rp.available ? " — pip install pymupdf" : ` (${rp.reason})`}` }
 });
 
 checks.push({
 	name: "pdftoppm (poppler)",
-	why: "PDF → image, the last leg of the render-and-eyeball path",
-	res: probe("pdftoppm", ["-v"])
+	why: "PDF → image, alternative to pymupdf",
+	res: imageEngines.includes("pdftoppm") ? { ok: true, detail: "found on PATH" } : probe("pdftoppm", ["-v"]),
+	redundant: imageEngines.length > 0 && !imageEngines.includes("pdftoppm")
 });
 
 checks.push({
@@ -207,17 +290,54 @@ for (const c of checks) {
 	console.log(`     need for: ${c.why}`);
 }
 console.log(line);
-const missing = checks.filter((c) => !c.res.ok && !c.res.unprobeable && !c.res.blocked);
+
+// One verdict for the visual self-check. Four separate MISS lines read as
+// "rendering is broken" even when COM covers it — that misreading is exactly
+// what this summary exists to prevent.
+const pdfReady = pdfRenderers.length > 0;
+const imgReady = imageEngines.length > 0;
+if (pdfReady && imgReady) {
+	console.log(`Visual self-check: READY — ${pdfRenderers[0]} → ${imageEngines[0]}`);
+	console.log("  layout conclusions hold only for that renderer; confirm in the reader's own software.");
+} else if (pdfReady) {
+	console.log(`Visual self-check: PARTIAL — ${pdfRenderers[0]} makes the PDF; no image engine to rasterise it.`);
+	console.log("  pip install pymupdf   (or install poppler / ImageMagick)");
+} else {
+	console.log("Visual self-check: UNAVAILABLE — no PDF renderer found.");
+	const hint =
+		process.platform === "win32"
+			? "winget install TheDocumentFoundation.LibreOffice   (or any Word / WPS build)"
+			: process.platform === "darwin"
+				? "brew install --cask libreoffice   (or Microsoft Word for Mac)"
+				: "apt install libreoffice   (or the dnf / pacman equivalent)";
+	console.log(`  ${hint}`);
+}
+console.log("");
+
 const unprobeable = checks.filter((c) => !c.res.ok && (c.res.unprobeable || c.res.blocked));
 if (unprobeable.length) {
 	console.log(`SKIP = cannot be probed here (a sandbox is blocking process creation);`);
 	console.log(`       this says nothing about whether the tool is installed.`);
 }
+
+// A missing soffice is not a capability gap when COM already renders — only its
+// `.doc` conversion leg is genuinely lost, and that is called out separately.
+const missing = checks.filter((c) => {
+	if (c.res.ok || c.res.unprobeable || c.res.blocked) return false;
+	if (c.redundant) return false;
+	if (/LibreOffice/.test(c.name) && hasCom) return false;
+	return true;
+});
+
 if (!missing.length) {
-	console.log("Everything probed is available — including the render-verify loop.");
+	console.log("Everything you need is available.");
 } else {
 	console.log(`${missing.length} capability gap(s):`);
 	for (const m of missing) console.log(`  · ${m.name} — ${m.why}`);
 	console.log("\nCore writes and schema validation work without these. Stay on the Node engine,");
 	console.log("or install the missing tool before relying on the path that needs it.");
+}
+if (!soffice.ok && hasCom) {
+	console.log("Note: soffice is absent but Office/WPS covers PDF rendering;");
+	console.log("      only `.doc` → `.docx` conversion stays unavailable.");
 }

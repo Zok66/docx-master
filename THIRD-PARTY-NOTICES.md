@@ -29,9 +29,22 @@
 
 ---
 
+## 3. `pro/` 可选 Python 工具链（衍生自 docx-pro）
+
+- **位置**：`pro/scripts/`（`comment.py`、`accept_changes.py`、`merge_runs.py`、`soffice.py`、
+  `validate.py`、`validators_*.py`、`element_order.py`、`helpers.py`）、`pro/templates/`、`pro/zh-CN.md`
+- **来源**：技能市场中的 `docx-pro` 技能（展示名「Word 文档处理」，作者 `zxh`，版本 1.0.3）
+- **授权**：该技能未在其元数据中声明独立许可证。本仓库按技能市场的分发条款继续使用这部分代码，
+  不对其主张额外权利。
+- **本地改动**：在本仓库中做过适配与扩展（如新增 `render.py`、调整校验器调用约定）。
+- **不包含**：`pro/schemas/` 的 XSD 文件属第 2 节所述的 ECMA-376 规范文件，与本条无关。
+- **异议处理**：若权利人认为此处的再分发方式不当，请提交 issue，将立即移除该目录或替换为等价的自研实现。
+
+---
+
 ## 本仓库原创部分的授权
 
-除上述目录外，本仓库其余全部内容（`scripts/*.js`、`scripts/extend/*.py`、`references/`、
+除第 1–3 节所列目录外，本仓库其余全部内容（`scripts/*.js`、`scripts/extend/*.py`、`references/`、
 `tests/`、文档与资产）均为原创，以 MIT License 授权：
 
 > MIT License · Copyright (c) 2026 Zok66 · 详见 [LICENSE](LICENSE)

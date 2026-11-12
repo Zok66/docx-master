@@ -40,7 +40,7 @@ Word 原生墨迹是 `word/ink/ink1.xml`（InkML）+ `<w14:ink>` 扩展 + 笔迹
 
 依赖 LibreOffice（`soffice --convert-to pdf`）或 Word 本身。
 
-**替代：** `doctor.js` 确认机器上有没有 `soffice`；有则用 PRO `soffice.py`，配 `pdftoppm` 还能把 PDF 拆成图做视觉核对。没有就交付 `.docx`，让用户自己导出。
+**替代：** `node scripts/doctor.js` 会列出机器上实际可用的渲染器；有任何一个就能跑 `python pro/scripts/render.py <file.docx>` 导出 PDF 与 PNG 做视觉核对（LibreOffice、Word、WPS 任一即可，不必都装）。全都没有就交付 `.docx`，让用户自己导出——不要用别的格式冒充。
 
 **WPS 渲染通道（实测可行，2026-10-14）：** 本机没有 `soffice` 但装了 WPS 时，可用 COM 自动化导出 PDF 再渲染成图做视觉核对（`pip install pywin32 PyMuPDF`）：
 

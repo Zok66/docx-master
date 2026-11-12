@@ -1,6 +1,6 @@
 ---
 name: docx-master
-description: "Standardize, restyle, edit, or audit Word (.docx / .dotx) documents by mutating OOXML directly — semantic styles + multi-level numbering, template import, content insertion (paragraphs / tables / images / equations), captions & cross-references, headers / footers, page setup and numbering, comments (批注), tracked changes, footnotes, TOC / index fields via `extend`, batch mail-merge, delivery gate (`pipeline` / `verify` / `doctor`). Use for everyday office work, theses, lab reports. Also: legacy `.doc` → `.docx` and render-to-image checks. Watermarks, shapes, charts, OLE, SmartArt need the pro branch. Do NOT use for PDFs, spreadsheets, or plain-text / Markdown sources (unless the task is specifically to *output* a docx)."
+description: "读取、修改、生成 Word 文档（.docx / .dotx）：识别并规范化已有排版、套用模板、插入表格与图片、查找替换、设置页眉页脚与页码、处理批注与修订、题注与交叉引用、目录索引、批量邮件合并、交付前自检；也支持旧版 .doc 转换与渲染成图核对。适用于日常办公、论文、实验报告。水印、图形、图表、OLE、SmartArt 需 pro 分支。不用于 PDF、电子表格、纯文本或 Markdown 源（除非要输出 docx）。English: Word docx report contract resume thesis tracked changes header footer page number TOC"
 ---
 
 # docx-master
@@ -120,7 +120,7 @@ Schema validation answers *is this file well-formed?* — never *is this what th
 4. Assert the artifact — `node scripts/verify.js verify.json`: exit 1 on any failed assertion
 5. Read the change manifest — `node scripts/verify.js <out.docx> --diff <src.docx>`: every line must be defensible against the user's words
 
-**Schema-valid is not delivery-ready.** Write assertions *before* the config — the requirements stated mechanically, the only guard against the defect class no schema check can see. 全量断言类型、`--emit-script` 降级路径、变更清单读法、人工自检 → **[delivery-gate.md](references/delivery-gate.md)**。
+**Schema-valid is not delivery-ready.** Write assertions *before* the config — the requirements stated mechanically, the only guard against the defect class no schema check can see. 全量断言类型、`--emit-script` 降级路径、变更清单读法、视觉核对 → **[delivery-gate.md](references/delivery-gate.md)**。
 
 ## Hard rules
 

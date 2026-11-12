@@ -81,6 +81,54 @@ styles, samples of new body text. It exists to be read, deliberately:
 
 ---
 
+## Visual self-check (best-effort, not a verdict)
+
+Everything above is mechanical: assertions, schemas, manifests. None of it can see
+that a table overflowed its margins, that a heading landed alone at the foot of a
+page, or that a figure drifted away from its caption. Only looking at the rendered
+pages catches those — run the visual pass whenever layout matters.
+
+```bash
+python pro/scripts/render.py out.docx                      # PDF + PNG for every page
+python pro/scripts/render.py out.docx --pages 1,6-8 --dpi 200
+python pro/scripts/render.py out.docx --pdf-only           # stop at the PDF
+python pro/scripts/render.py --probe --human               # what is installed here, with resolved identity
+```
+
+The renderer is probed at runtime — nothing is assumed about the machine:
+
+```
+PDF:   soffice → Windows COM (Word / WPS) → Word for Mac → unavailable (exit 3)
+image: pymupdf → pdftoppm → ImageMagick → none (PDF kept, rasterisation skipped)
+```
+
+**Read `renderer` in the output before trusting the picture.** WPS registers itself
+under the `Word.Application` ProgID and makes `Application.Name` return
+`"Microsoft Word"` — only `Application.Path` (with `Build` as fallback) reveals the
+truth. `render.py` resolves this and writes `wps` or `word` accordingly; a report
+that says `"name": "Microsoft Word"` next to `"renderer": "wps"` is behaving correctly.
+
+### What each check can and cannot establish
+
+| Check | Establishes | Strength |
+|---|---|---|
+| `verify.js` assertions + `validate.js` | styles, numbering, fields, bookmarks, XML validity | **Objective** — identical on any machine |
+| `render.py` visual pass | pagination, headers/footers, table fit, figure placement | **Subjective** — varies with the renderer |
+| The user opening it in their own software | the actual delivery scenario | **Authoritative** |
+
+A file that passes under WPS is not guaranteed to pass under Microsoft Word, or the
+reverse: font metrics, line-breaking and floating-object handling all differ. So:
+
+- state the renderer identity whenever you report a visual result;
+- never let a visual pass stand in for an assertion — it supplements, it does not replace;
+- before handover, verify in the software the recipient actually uses, not the one
+  that happened to be installed here.
+
+Full renderer matrix, degradation rules and the `.doc` conversion caveat:
+[pro-toolchain.md](pro-toolchain.md).
+
+---
+
 ## The last check is not a program
 
 Before handover, restate the request as a checklist in the user's own terms and

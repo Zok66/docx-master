@@ -21,12 +21,18 @@ python scripts/extend/extend.py config.json
 python scripts/extend/extend.py config.json --dry-run   # 跑完不落盘
 ```
 
-依赖：Python + `lxml`（本机已装在 `envs/default`）。命令用绝对路径调用该解释器：
+依赖：Python 3.9+ 与 `lxml`。用你环境里的 `python` / `python3` 调用即可；
+若 `lxml` 装在某个特定虚拟环境里，把该环境的解释器路径传进去：
 
 ```bash
-"C:/Users/PC/.workbuddy/binaries/python/envs/default/Scripts/python.exe" \
-  scripts/extend/extend.py config.json
+python scripts/extend/extend.py config.json
+
+# 例：解释器不在 PATH 上时
+/path/to/venv/bin/python scripts/extend/extend.py config.json      # Linux / macOS
+C:\path\to\venv\Scripts\python.exe scripts\extend\extend.py config.json   # Windows
 ```
+
+不确定哪台机器上哪个解释器可用，先跑 `node scripts/doctor.js`——它会列出探测到的 Python 及其依赖状态。
 
 写完**必须**跑两套校验器，缺一不可：
 

@@ -10,7 +10,7 @@
 | 合并碎片化 run（让文本在 XML 中重新连续、可查找） | **Node 优先**：`../scripts/merge_runs.js`（还能覆盖页眉 / 页脚 / 脚尾注，或给 `apply` 配 `mergeRuns: true`）；文档已解包成目录时用 `scripts/merge_runs.py` |
 | XSD 校验 + 修订完整性核查（`--author`） | `scripts/validate.py` |
 | 查任意元素的 XSD 强制子元素顺序 | `scripts/element_order.py` |
-| 渲染成图、人工核对版式 | `scripts/soffice.py` + `pdftoppm` |
+| 渲染成图、人工核对版式 | `scripts/render.py`（探测 LibreOffice / Word / WPS，再探测 pymupdf / poppler / ImageMagick） |
 | 用 docx-js（npm `docx`）从零建文档 | 方法论与陷阱清单见 [`zh-CN.md`](zh-CN.md) |
 
 ## 目录内容
@@ -24,7 +24,7 @@
 
 ## 进一步阅读
 
-- **能力路由、依赖状态、调用约定、常用工作流、边界与冲突、安全审计结论、回退路径**
+- **能力路由、依赖矩阵、调用约定、常用工作流、边界与冲突、视觉核对的效力边界、安全声明、来源与授权**
   → [`../references/pro-toolchain.md`](../references/pro-toolchain.md)
 - 主技能入口 → [`../SKILL.md`](../SKILL.md)
 

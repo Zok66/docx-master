@@ -220,7 +220,7 @@ node $SK/scripts/verify.js out.docx --diff 源文档.docx      # 列出本次改
   "assert": [
     { "type": "sectionCount", "eq": 3 },
     { "type": "hasField", "field": "TOC", "scope": "body" },
-    { "type": "headerText", "regex": "佐罗斯" },
+    { "type": "headerText", "regex": "作者姓名" },
     { "type": "notContains", "text": "我的书名", "scope": "footer" },
     { "type": "footerText", "regex": "^\\s*第\\s*<PAGE>\\s*页\\s*\\/\\s*共\\s*<NUMPAGES>\\s*页\\s*$" },
     { "type": "refsResolve" },
