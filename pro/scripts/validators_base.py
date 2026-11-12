@@ -15,11 +15,34 @@ from helpers import safe_extract
 
 @lru_cache(maxsize=None)
 def _load_schema(schema_path: str):
-    with open(schema_path, "rb") as xsd_file:
-        xsd_doc = lxml.etree.parse(
-            xsd_file, parser=lxml.etree.XMLParser(), base_url=schema_path
-        )
-    return lxml.etree.XMLSchema(xsd_doc)
+    # base_url must be a file:// URI, not a plain path: the ECMA-376 schemas
+    # import siblings by relative schemaLocation (dc.xsd / dcterms.xsd /
+    # xml.xsd), and libxml2 only resolves those against a proper base URI.
+    # A plain Windows path leaves them unresolved and the schema fails to
+    # compile.
+    #
+    # Every import is bundled locally, and no_network=True keeps it that way:
+    # a future schemaLocation pointing at an http(s) URL now fails loudly at
+    # compile time instead of silently reaching out to the internet (which
+    # sandboxed runtimes surface as an outbound-connection prompt).
+    base_uri = Path(schema_path).resolve().as_uri()
+    try:
+        with open(schema_path, "rb") as xsd_file:
+            xsd_doc = lxml.etree.parse(
+                xsd_file,
+                parser=lxml.etree.XMLParser(no_network=True),
+                base_url=base_uri,
+            )
+        return lxml.etree.XMLSchema(xsd_doc)
+    except lxml.etree.XMLSchemaParseError as exc:
+        raise RuntimeError(
+            f"Cannot compile schema offline: {schema_path}\n"
+            f"  {exc}\n"
+            "  This means the schema (or one it imports) points at a remote\n"
+            "  schemaLocation, or an imported file is missing from pro/schemas/.\n"
+            "  Fix: bundle the imported .xsd locally and reference it by relative\n"
+            "  filename, then re-run: python pro/scripts/schema_selfcheck.py"
+        ) from exc
 
 class BaseSchemaValidator:
 
