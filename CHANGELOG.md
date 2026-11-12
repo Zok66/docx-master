@@ -5,6 +5,35 @@
 
 ---
 
+## 修复 —— PRO 校验不再联网：ECMA-376 schema 全量本地化
+
+`pro/scripts/validate.py` 编译 `opc-coreProperties.xsd` 时，`schemaLocation` 指向
+`http://dublincore.org/...` 的 `dc.xsd` / `dcterms.xsd`，而技能包未自带副本 → lxml 只能联网下载。
+后果有两种：沙箱运行时弹出「正在尝试访问 HTTP 地址」的放行确认；纯离线环境则校验直接失败。
+
+- `pro/schemas/ecma/fouth-edition/` 补齐 `dc.xsd` + `dcterms.xsd`（与 Node 侧
+  `scripts/_shared/schemas/` 同源的精简 stub；该 schema 实际只引用 8 个 DC 元素，stub 全覆盖，
+  且官方 `dc.xsd` 对这些元素同样是 `xs:anyType`，类型约束无差异）
+- `opc-coreProperties.xsd` 三处 `import` 改相对路径（ecma 副本 + `pro/schemas/` 顶层副本），
+  并补上 `xml:lang` 必需的 `xml.xsd`（原本缺 `schemaLocation` 只因联网侥幸通过）
+- `validators_base.py`：`base_url` 改用 `Path(...).resolve().as_uri()` —— 相对 `schemaLocation`
+  只有在 `file://` 基准下才能解析；同时加 `no_network=True`，将来若再引入远程引用会在编译期
+  直接报错，而不是静默联网
+
+- 新增 `pro/scripts/schema_selfcheck.py`：把 `no_network=True` 的 fail-fast 代价变成构建期可验证项。
+  全量编译 `pro/schemas/` 下 45 份 schema，并对离线失败者再做一次「放开网络」的对照编译，自动区分
+  `NETWORK`（真依赖外网 → 退出码 1）与 `BASELINE`（联网也失败 → schema 自身缺陷，不阻断）
+- `validators_base._load_schema` 捕获 `XMLSchemaParseError`，报错信息直接给出成因与修复路径，
+  不再抛裸 lxml 堆栈
+
+回归：`pro/scripts/validate.py` 对 4 份 `demo/` + 公文示例 → **All validations PASSED**，断网可跑。
+`schema_selfcheck.py` → 43 份离线可编译 / 0 份依赖网络 / 2 份基线缺陷（`wml-sdtdatahash-2020.xsd`、
+`wml-symex-2015.xsd`，Word 扩展命名空间，不在 `SCHEMA_MAPPINGS` 路径上；经对照编译确认联网同样失败，
+与离线策略无关）。
+新增文件合计 6.2 KB（`dc.xsd` 1.1 KB / `dcterms.xsd` 0.5 KB / 复用现有 `xml.xsd`）。
+
+---
+
 ## 文档 —— 新增 `demo/` 目录：四份真实产出作为效果演示
 
 - `docx-master-demo.docx`：综合能力全景（10 章 / 8 节 / 243 段，排版 / 目录 / 分节 / 表格 / 插图 / 域 / 批量 / 导航 / 校对）

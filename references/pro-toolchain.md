@@ -225,10 +225,47 @@ python element_order.py --doc                     # 重新生成 references/elem
   `LD_PRELOAD` 注入 LibreOffice 以绕过 socket 限制。该分支**仅 Linux 生效**（依赖 `AF_UNIX`），
   Windows / macOS 走不到。在受限 Linux 环境使用前需知悉此行为。
 
-## 8. 来源与授权
+## 8. schema 离线约束（改动前必读）
+
+XSD 校验**零联网**是硬性约束，不是可选优化。原因：沙箱运行时会把任何外网请求拦成
+「是否允许此连接」弹窗，用户看到的是莫名其妙的审批框，且断网环境下校验直接不可用。
+
+三道机制配合，缺一不可：
+
+| 位置 | 作用 |
+|---|---|
+| `pro/schemas/**/*.xsd` 的 `schemaLocation` | 一律写**相对文件名**，不写 `http(s)` 绝对地址 |
+| 被引用的 `.xsd` | 必须随包提交，不能指望运行时下载 |
+| `validators_base._load_schema` | `base_url` 用 `Path(...).resolve().as_uri()`；解析器 `no_network=True` |
+
+`no_network=True` 是**保险丝**：将来谁再写一条远程 `schemaLocation`，编译期立刻报错，
+而不是变成一次静默的外网请求。代价是 fail-fast——所以配套了自检：
+
+```bash
+python pro/scripts/schema_selfcheck.py            # 全量：45 份 schema
+python pro/scripts/schema_selfcheck.py wml.xsd    # 单文件
+python pro/scripts/schema_selfcheck.py --verbose  # 连通过的也列出来
+```
+
+脚本会自动区分两类失败，不要混为一谈：
+
+- **`NETWORK`** — 离线失败、联网成功 ⇒ 真的依赖外网，**退出码 1，必须修**。修法是把这个
+  被 import 的文件放进 `pro/schemas/`，`schemaLocation` 改成相对名。
+- **`BASELINE`** — 联网也失败 ⇒ schema 自身 QName 缺陷，与离线策略无关，**不影响退出码**。
+  当前基线有 2 份：`wml-sdtdatahash-2020.xsd`、`wml-symex-2015.xsd`（Word 扩展命名空间，
+  不在 `SCHEMA_MAPPINGS` 校验路径上，从未被加载）。
+
+**新增或替换 schema 的验收流程**：放文件 → `schemaLocation` 用相对名 →
+`schema_selfcheck.py` 退出码为 0 → `validate.py` 对 `demo/*.docx` 全量 PASSED。
+`grep -rE 'schemaLocation="http' pro/schemas/` 应只命中注释文本（`xml.xsd` 第 58 行是
+被 `&lt;` 转义的文档示例，不是真实 import）。
+
+## 9. 来源与授权
 
 `pro/` 的早期版本衍生自技能市场中的 `docx-pro`（作者 `zxh`），此后由本仓库独立维护与扩展。
 该部分代码的授权以原技能声明为准；如权利人认为再分发方式不当，请提 issue 联系移除。
 
-`pro/schemas/` 为 ECMA-376 / ISO-IEC 29500 规范附带的 XSD 文件，按原样再分发、未做修改，
-详见仓库根目录 `THIRD-PARTY-NOTICES.md`。
+`pro/schemas/` 为 ECMA-376 / ISO-IEC 29500 规范附带的 XSD 文件，按原样再分发，
+详见仓库根目录 `THIRD-PARTY-NOTICES.md`。唯一的本地化改动：`opc-coreProperties.xsd` 的
+三处 `import` 由 `http(s)` 绝对地址改为相对路径，并随包附带 `dc.xsd` / `dcterms.xsd`
+精简 stub —— 使 XSD 校验全程离线，不发起任何外网请求（详见 CHANGELOG「PRO 校验不再联网」）。

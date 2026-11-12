@@ -25,7 +25,10 @@
   - Microsoft 对 OOXML 实现做出 [Open Specification Promise](https://learn.microsoft.com/openspecifications/dev-center/osp)，
     承诺不就实现该规范主张必要专利
 - **用途**：`pro/scripts/validate.py` 对产出的 docx 做 XSD 校验（写盘前自动执行）
-- **说明**：这些文件按原样再分发、未做修改；如 ECMA/微软要求移除，可随时用官方规范包重新获取
+- **说明**：这些文件按原样再分发；如 ECMA/微软要求移除，可随时用官方规范包重新获取。
+  仅 `ecma/fouth-edition/opc-coreProperties.xsd` 的 `import` 被改为相对路径（离线校验需要）。
+  `ecma/fouth-edition/dc.xsd`、`dcterms.xsd` 为本仓库自写的精简 stub（非上游副本，
+  SPDX-License-Identifier: CC0-1.0），只声明该 schema 实际引用的 Dublin Core 元素。
 
 ---
 
